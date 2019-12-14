@@ -48,13 +48,23 @@ pub enum StoreElement<'a> {
     Term {
         ty: Type,
         id: u32,
-        args: &'a [u32],
+        args: &'a [StorePointer],
     },
     /// Convertability proof
     Conv {
         e1: StorePointer,
         e2: StorePointer,
     },
+}
+
+impl<'a> StoreElement<'a> {
+    pub fn as_term(self) -> Option<(Type, u32, &'a [StorePointer])> {
+        if let StoreElement::Term { ty, id, args } = self {
+            Some((ty, id, args))
+        } else {
+            None
+        }
+    }
 }
 
 enum InternalStoreElement {
@@ -76,7 +86,7 @@ enum InternalStoreElement {
 
 pub struct Store {
     data: Vec<InternalStoreElement>,
-    args: Vec<u32>,
+    args: Vec<StorePointer>,
 }
 
 impl Store {

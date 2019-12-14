@@ -1,8 +1,11 @@
 pub enum Kind {
     InvalidHeapIndex,
     InvalidTheorem,
+    InvalidStoreIndex,
+    InvalidStoreType,
     UnifyStackUnderflow,
     UnifyRefFailure,
+    UnifyTermFailure,
     BindDep,
 }
 

@@ -1,9 +1,10 @@
 use crate::error::Kind;
+use crate::verifier::StoreElement;
 use crate::TResult;
 use crate::Verifier;
 
 pub trait Unify {
-    fn term(&mut self, idx: u32) -> TResult;
+    fn term(&mut self, idx: u32, save: bool) -> TResult;
 
     fn reference(&mut self, idx: u32) -> TResult;
 
@@ -15,8 +16,26 @@ pub trait Unify {
 }
 
 impl Unify for Verifier {
-    fn term(&mut self, idx: u32) -> TResult {
-        unimplemented!();
+    fn term(&mut self, idx: u32, save: bool) -> TResult {
+        let ptr = self.unify_stack.pop().ok_or(Kind::UnifyStackUnderflow)?;
+
+        let term = self.store.get(ptr).ok_or(Kind::InvalidStoreIndex)?;
+
+        let (ty, id, args) = term.as_term().ok_or(Kind::InvalidStoreType)?;
+
+        if id != idx {
+            return Err(Kind::UnifyTermFailure);
+        }
+
+        for i in args.iter().rev() {
+            self.unify_stack.push(*i);
+        }
+
+        if save {
+            self.unify_heap.push(ptr);
+        }
+
+        Ok(())
     }
 
     fn reference(&mut self, idx: u32) -> TResult {
