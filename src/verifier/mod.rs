@@ -8,6 +8,10 @@ impl Stack {
     fn push(&mut self, idx: u32) {
         self.data.push(idx);
     }
+
+    fn pop(&mut self) -> Option<u32> {
+        self.data.pop()
+    }
 }
 
 pub struct Heap {
@@ -16,7 +20,7 @@ pub struct Heap {
 
 impl Heap {
     fn get(&self, idx: u32) -> Option<u32> {
-        self.data.get(idx as usize).map(|x| *x)
+        self.data.get(idx as usize).copied()
     }
 }
 
@@ -37,6 +41,8 @@ impl Theorems {
 pub struct Verifier {
     proof_stack: Stack,
     proof_heap: Heap,
+    unify_stack: Stack,
+    unify_heap: Heap,
     theorems: Theorems,
 }
 
