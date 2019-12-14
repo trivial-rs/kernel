@@ -1,25 +1,41 @@
+mod store;
 pub mod stream;
 
+use crate::error::Kind;
+use crate::TResult;
+use store::Store;
+use store::StoreElement;
+use store::StorePointer;
+use store::Type;
+
 pub struct Stack {
-    data: Vec<u32>,
+    data: Vec<StorePointer>,
 }
 
 impl Stack {
-    fn push(&mut self, idx: u32) {
+    fn push(&mut self, idx: StorePointer) {
         self.data.push(idx);
     }
 
-    fn pop(&mut self) -> Option<u32> {
+    fn pop(&mut self) -> Option<StorePointer> {
         self.data.pop()
     }
 }
 
 pub struct Heap {
-    data: Vec<u32>,
+    data: Vec<StorePointer>,
 }
 
 impl Heap {
-    fn get(&self, idx: u32) -> Option<u32> {
+    fn clear(&mut self) {
+        self.data.clear();
+    }
+
+    fn push(&mut self, idx: StorePointer) {
+        self.data.push(idx);
+    }
+
+    fn get(&self, idx: u32) -> Option<StorePointer> {
         self.data.get(idx as usize).copied()
     }
 }
@@ -43,7 +59,9 @@ pub struct Verifier {
     proof_heap: Heap,
     unify_stack: Stack,
     unify_heap: Heap,
+    store: Store,
     theorems: Theorems,
+    next_bv: u64,
 }
 
 impl Verifier {

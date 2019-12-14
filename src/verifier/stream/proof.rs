@@ -1,4 +1,5 @@
 use crate::error::Kind;
+use crate::verifier::store::StoreElement;
 use crate::TResult;
 use crate::Verifier;
 

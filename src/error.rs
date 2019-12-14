@@ -3,6 +3,7 @@ pub enum Kind {
     InvalidTheorem,
     UnifyStackUnderflow,
     UnifyRefFailure,
+    BindDep,
 }
 
 pub type TResult<O = ()> = Result<O, Kind>;
