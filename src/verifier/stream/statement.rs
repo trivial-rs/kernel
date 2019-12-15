@@ -8,7 +8,7 @@ pub trait Statement {
     fn load_args(&mut self, binders: &[Type]) -> TResult;
 }
 
-impl Statement for Verifier {
+impl<'a> Statement for Verifier<'a> {
     fn load_args(&mut self, binders: &[Type]) -> TResult {
         self.proof_heap.clear();
         self.next_bv = 1;

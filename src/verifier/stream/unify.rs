@@ -1,5 +1,4 @@
 use crate::error::Kind;
-use crate::verifier::StoreElement;
 use crate::TResult;
 use crate::Verifier;
 
@@ -15,7 +14,7 @@ pub trait Unify {
     fn hyp_thm_end(&mut self) -> TResult;
 }
 
-impl Unify for Verifier {
+impl<'a> Unify for Verifier<'a> {
     fn term(&mut self, idx: u32, save: bool) -> TResult {
         let ptr = self.unify_stack.pop().ok_or(Kind::UnifyStackUnderflow)?;
 
@@ -23,7 +22,7 @@ impl Unify for Verifier {
 
         let (ty, id, args) = term.as_term().ok_or(Kind::InvalidStoreType)?;
 
-        if id != idx {
+        if *id != idx {
             return Err(Kind::UnifyTermFailure);
         }
 
