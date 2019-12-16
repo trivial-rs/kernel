@@ -10,6 +10,10 @@ impl StorePointer {
         StorePointer((e << 2) | 0x01)
     }
 
+    pub fn to_proof(self) -> StorePointer {
+        StorePointer::proof(self.0 >> 2)
+    }
+
     pub fn conv(e: u32) -> StorePointer {
         StorePointer((e << 2) | 0x02)
     }
@@ -41,6 +45,10 @@ impl Type {
 
     pub fn depends_on(&self, t: u8) -> bool {
         self.0 & (1u64 << t) != 0
+    }
+
+    pub fn depends_on_full(&self, other: &u64) -> bool {
+        (self.0 & other) != 0
     }
 
     pub fn get_deps(&self) -> u64 {

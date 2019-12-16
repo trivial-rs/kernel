@@ -51,17 +51,32 @@ impl Heap {
     fn get(&self, idx: u32) -> Option<StorePointer> {
         self.data.get(idx as usize).copied()
     }
+
+    fn extend(&mut self, ext: &[StorePointer]) {
+        self.data.extend_from_slice(ext);
+    }
 }
 
-pub struct Theorem {
-    //
+pub struct Theorem<'a> {
+    nr_args: u16,
+    binders: &'a [Type],
 }
 
-pub struct Theorems {
-    data: Vec<Theorem>,
+impl<'a> Theorem<'a> {
+    fn get_nr_args(&self) -> u16 {
+        self.nr_args
+    }
+
+    fn get_binders(&self) -> &[Type] {
+        self.binders
+    }
 }
 
-impl Theorems {
+pub struct Theorems<'a> {
+    data: Vec<Theorem<'a>>,
+}
+
+impl<'a> Theorems<'a> {
     fn get(&self, idx: u32) -> Option<&Theorem> {
         self.data.get(idx as usize)
     }
@@ -103,7 +118,7 @@ pub struct Verifier<'a> {
     unify_stack: Stack,
     unify_heap: Heap,
     store: Store,
-    theorems: Theorems,
+    theorems: Theorems<'a>,
     terms: Terms<'a>,
     next_bv: u64,
 }

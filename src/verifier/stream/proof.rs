@@ -7,7 +7,7 @@ pub trait Proof {
 
     fn term(&mut self, idx: u32, save: bool) -> TResult;
 
-    fn theorem(&mut self, idx: u32) -> TResult;
+    fn theorem(&mut self, idx: u32, save: bool) -> TResult;
 }
 
 impl<'a> Proof for Verifier<'a> {
@@ -38,8 +38,73 @@ impl<'a> Proof for Verifier<'a> {
         Ok(())
     }
 
-    fn theorem(&mut self, idx: u32) -> TResult {
+    fn theorem(&mut self, idx: u32, save: bool) -> TResult {
         let thm = self.theorems.get(idx).ok_or(Kind::InvalidTheorem)?;
+        let target = self.proof_stack.pop().ok_or(Kind::ProofStackUnderflow)?;
+        let last = self.proof_stack.get_last(thm.get_nr_args())?;
+
+        let types = thm.get_binders();
+
+        self.unify_heap.clear();
+
+        let mut g_deps = [0; 256];
+        let mut bound = 0;
+        let mut i = 0;
+
+        for (&arg, &target_type) in last.iter().zip(types.iter()) {
+            let ty = self
+                .store
+                .get_type_of_expr(arg)
+                .ok_or(Kind::InvalidStoreExpr)?;
+
+            let deps = ty.get_deps();
+
+            if target_type.is_bound() {
+                *g_deps
+                    .get_mut(bound as usize)
+                    .ok_or(Kind::DependencyOverflow)? = deps;
+
+                bound += 1;
+
+                for &i in last.get(..i).ok_or(Kind::DependencyOverflow)? {
+                    let d = self
+                        .store
+                        .get_type_of_expr(i)
+                        .ok_or(Kind::InvalidStoreExpr)?;
+
+                    if d.depends_on_full(&deps) {
+                        return Err(Kind::DisjointVariableViolation);
+                    }
+                }
+            } else {
+                for (i, &j) in g_deps
+                    .get(..(bound as usize))
+                    .ok_or(Kind::DependencyOverflow)?
+                    .iter()
+                    .enumerate()
+                {
+                    // todo other part
+                    if !target_type.depends_on(i as u8) || (false) {
+                        return Err(Kind::DisjointVariableViolation);
+                    }
+                }
+            }
+
+            i += 1;
+        }
+
+        self.unify_heap.extend(last);
+        self.proof_stack.truncate_last(thm.get_nr_args());
+
+        // todo: run unify
+
+        let proof = target.to_proof();
+
+        self.proof_stack.push(proof);
+
+        if save {
+            self.proof_heap.push(proof);
+        }
 
         Ok(())
     }

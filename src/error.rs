@@ -12,6 +12,7 @@ pub enum Kind {
     ProofStackUnderflow,
     TypeError,
     BindDep,
+    DisjointVariableViolation,
     Impossible,
 }
 
