@@ -42,7 +42,12 @@ impl<'a> Proof for Verifier<'a> {
 
     fn theorem(&mut self, idx: u32, save: bool) -> TResult {
         let thm = self.theorems.get(idx).ok_or(Kind::InvalidTheorem)?;
-        let target = self.proof_stack.pop().ok_or(Kind::ProofStackUnderflow)?;
+        let target = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_expr()
+            .ok_or(Kind::InvalidStoreExpr)?;
         let last = self.proof_stack.get_last(thm.get_nr_args())?;
 
         let types = thm.get_binders();
@@ -54,6 +59,8 @@ impl<'a> Proof for Verifier<'a> {
         let mut i = 0;
 
         for (&arg, &target_type) in last.iter().zip(types.iter()) {
+            let arg = arg.as_expr().ok_or(Kind::InvalidStoreExpr)?;
+
             let ty = self
                 .store
                 .get_type_of_expr(arg)
@@ -69,6 +76,8 @@ impl<'a> Proof for Verifier<'a> {
                 bound += 1;
 
                 for &i in last.get(..i).ok_or(Kind::DependencyOverflow)? {
+                    let i = i.as_expr().ok_or(Kind::InvalidStoreExpr)?;
+
                     let d = self
                         .store
                         .get_type_of_expr(i)
@@ -112,7 +121,12 @@ impl<'a> Proof for Verifier<'a> {
     }
 
     fn hyp(&mut self) -> TResult {
-        let e = self.proof_stack.pop().ok_or(Kind::ProofStackUnderflow)?;
+        let e = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_expr()
+            .ok_or(Kind::InvalidStoreExpr)?;
         let ty = self
             .store
             .get_type_of_expr(e)
@@ -124,7 +138,7 @@ impl<'a> Proof for Verifier<'a> {
             return Err(Kind::SortNotProvable);
         }
 
-        self.hyp_stack.push(e);
+        self.hyp_stack.push(e.to_expr());
         self.proof_heap.push(e.to_proof());
 
         Ok(())

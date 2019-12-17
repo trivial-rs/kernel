@@ -3,25 +3,25 @@ pub mod stream;
 
 use crate::error::Kind;
 use crate::TResult;
+use store::PackedStorePointer;
 use store::Store;
 use store::StoreElement;
-use store::StorePointer;
 use store::Type;
 
 pub struct Stack {
-    data: Vec<StorePointer>,
+    data: Vec<PackedStorePointer>,
 }
 
 impl Stack {
-    fn push(&mut self, idx: StorePointer) {
+    fn push(&mut self, idx: PackedStorePointer) {
         self.data.push(idx);
     }
 
-    fn pop(&mut self) -> Option<StorePointer> {
+    fn pop(&mut self) -> Option<PackedStorePointer> {
         self.data.pop()
     }
 
-    fn get_last(&self, nr: u16) -> TResult<&[StorePointer]> {
+    fn get_last(&self, nr: u16) -> TResult<&[PackedStorePointer]> {
         let len = self.data.len();
         self.data
             .as_slice()
@@ -36,7 +36,7 @@ impl Stack {
 }
 
 pub struct Heap {
-    data: Vec<StorePointer>,
+    data: Vec<PackedStorePointer>,
 }
 
 impl Heap {
@@ -44,15 +44,15 @@ impl Heap {
         self.data.clear();
     }
 
-    fn push(&mut self, idx: StorePointer) {
+    fn push(&mut self, idx: PackedStorePointer) {
         self.data.push(idx);
     }
 
-    fn get(&self, idx: u32) -> Option<StorePointer> {
+    fn get(&self, idx: u32) -> Option<PackedStorePointer> {
         self.data.get(idx as usize).copied()
     }
 
-    fn extend(&mut self, ext: &[StorePointer]) {
+    fn extend(&mut self, ext: &[PackedStorePointer]) {
         self.data.extend_from_slice(ext);
     }
 }

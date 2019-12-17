@@ -1,29 +1,74 @@
 #[derive(Copy, Clone, PartialEq)]
+pub struct PackedStorePointer(u32);
+
+impl PackedStorePointer {
+    pub fn expr(e: u32) -> PackedStorePointer {
+        PackedStorePointer(e << 2)
+    }
+
+    pub fn as_expr(self) -> Option<StorePointer> {
+        if self.0 & 0x3 == 0x0 {
+            Some(self.to_ptr())
+        } else {
+            None
+        }
+    }
+
+    pub fn proof(e: u32) -> PackedStorePointer {
+        PackedStorePointer((e << 2) | 0x01)
+    }
+
+    pub fn as_proof(self) -> Option<StorePointer> {
+        if self.0 & 0x03 == 0x01 {
+            Some(self.to_ptr())
+        } else {
+            None
+        }
+    }
+
+    pub fn conv(e: u32) -> PackedStorePointer {
+        PackedStorePointer((e << 2) | 0x02)
+    }
+
+    pub fn as_conv(self) -> Option<StorePointer> {
+        if self.0 & 0x03 == 0x02 {
+            Some(self.to_ptr())
+        } else {
+            None
+        }
+    }
+
+    pub fn co_conv(e: u32) -> PackedStorePointer {
+        PackedStorePointer((e << 2) | 0x03)
+    }
+
+    pub fn as_co_conv(self) -> Option<StorePointer> {
+        if self.0 & 0x03 == 0x03 {
+            Some(self.to_ptr())
+        } else {
+            None
+        }
+    }
+
+    fn to_ptr(&self) -> StorePointer {
+        StorePointer((self.0 & 0xFC) >> 2)
+    }
+}
+
+#[derive(Copy, Clone, PartialEq)]
 pub struct StorePointer(u32);
 
 impl StorePointer {
-    pub fn expr(e: u32) -> StorePointer {
-        StorePointer(e << 2)
+    pub fn to_proof(&self) -> PackedStorePointer {
+        PackedStorePointer::proof(self.0)
     }
 
-    pub fn proof(e: u32) -> StorePointer {
-        StorePointer((e << 2) | 0x01)
-    }
-
-    pub fn to_proof(self) -> StorePointer {
-        StorePointer::proof(self.0 >> 2)
-    }
-
-    pub fn conv(e: u32) -> StorePointer {
-        StorePointer((e << 2) | 0x02)
-    }
-
-    pub fn co_conv(e: u32) -> StorePointer {
-        StorePointer((e << 2) | 0x03)
+    pub fn to_expr(&self) -> PackedStorePointer {
+        PackedStorePointer::expr(self.0)
     }
 
     fn get_idx(&self) -> usize {
-        ((self.0 & 0xFC) >> 2) as usize
+        self.0 as usize
     }
 }
 
@@ -68,12 +113,12 @@ pub enum StoreElement<'a> {
     Term {
         ty: Type,
         id: u32,
-        args: &'a [StorePointer],
+        args: &'a [PackedStorePointer],
     },
     /// Convertability proof
     Conv {
-        e1: StorePointer,
-        e2: StorePointer,
+        e1: PackedStorePointer,
+        e2: PackedStorePointer,
     },
 }
 
@@ -85,17 +130,17 @@ pub enum StoreElementRef<'a> {
     Term {
         ty: &'a Type,
         id: &'a u32,
-        args: &'a [StorePointer],
+        args: &'a [PackedStorePointer],
     },
     /// Convertability proof
     Conv {
-        e1: &'a StorePointer,
-        e2: &'a StorePointer,
+        e1: &'a PackedStorePointer,
+        e2: &'a PackedStorePointer,
     },
 }
 
 impl<'a> StoreElementRef<'a> {
-    pub fn as_term(self) -> Option<(&'a Type, &'a u32, &'a [StorePointer])> {
+    pub fn as_term(self) -> Option<(&'a Type, &'a u32, &'a [PackedStorePointer])> {
         if let StoreElementRef::Term { ty, id, args } = self {
             Some((ty, id, args))
         } else {
@@ -116,14 +161,14 @@ enum InternalStoreElement {
         ptr_args: usize,
     },
     Conv {
-        e1: StorePointer,
-        e2: StorePointer,
+        e1: PackedStorePointer,
+        e2: PackedStorePointer,
     },
 }
 
 pub struct Store {
     data: Vec<InternalStoreElement>,
-    args: Vec<StorePointer>,
+    args: Vec<PackedStorePointer>,
 }
 
 use crate::error::Kind;
@@ -140,19 +185,19 @@ impl Store {
     pub fn create_term(
         &mut self,
         id: u32,
-        args: &[StorePointer],
+        args: &[PackedStorePointer],
         types: &[Type],
         sort: u8,
         def: bool,
-    ) -> TResult<StorePointer> {
+    ) -> TResult<PackedStorePointer> {
         let offset = self.args.len();
         let mut accum = 0;
         let mut g_deps = [0; 256];
         let mut bound = 0;
 
-        // todo: check if all elements in last are expr
-
         for (&arg, &target_type) in args.iter().zip(types.iter()) {
+            let arg = arg.as_expr().ok_or(Kind::InvalidStoreType)?;
+
             let ty = self.get_type_of_expr(arg).ok_or(Kind::InvalidStoreExpr)?;
             let mut deps = ty.get_deps();
 
@@ -207,10 +252,10 @@ impl Store {
 
         self.data.push(ise);
 
-        Ok(StorePointer::expr(size))
+        Ok(PackedStorePointer::expr(size))
     }
 
-    pub fn push<'b>(&mut self, element: StoreElement<'b>) -> StorePointer {
+    pub fn push<'b>(&mut self, element: StoreElement<'b>) -> PackedStorePointer {
         let size = self.data.len() as u32;
 
         match element {
@@ -235,7 +280,7 @@ impl Store {
             }
         }
 
-        StorePointer::expr(size)
+        PackedStorePointer::expr(size)
     }
 
     pub fn clear(&mut self) {
@@ -253,8 +298,8 @@ impl Store {
         }
     }
 
-    pub fn get(&self, ptr: StorePointer) -> Option<StoreElementRef> {
-        let element = self.data.get(ptr.get_idx())?;
+    pub fn get(&self, ptr: PackedStorePointer) -> Option<StoreElementRef> {
+        let element = self.data.get(ptr.to_ptr().get_idx())?;
 
         match element {
             InternalStoreElement::Var { ty, var } => Some(StoreElementRef::Var { ty, var }),
