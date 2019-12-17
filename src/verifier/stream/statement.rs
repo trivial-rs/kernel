@@ -14,10 +14,14 @@ impl<'a> Statement for Verifier<'a> {
         self.next_bv = 1;
 
         for (i, ty) in binders.iter().enumerate() {
-            let sort = ty.sort();
+            let sort = self.sorts.get(ty.get_sort()).ok_or(Kind::InvalidSort)?;
             let deps = ty.get_deps();
 
             if ty.is_bound() {
+                if sort.is_strict() {
+                    return Err(Kind::SortIsStrict);
+                }
+
                 if deps != self.next_bv {
                     return Err(Kind::BindDep);
                 }

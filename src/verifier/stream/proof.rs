@@ -8,6 +8,8 @@ pub trait Proof {
     fn term(&mut self, idx: u32, save: bool) -> TResult;
 
     fn theorem(&mut self, idx: u32, save: bool) -> TResult;
+
+    fn hyp(&mut self) -> TResult;
 }
 
 impl<'a> Proof for Verifier<'a> {
@@ -105,6 +107,25 @@ impl<'a> Proof for Verifier<'a> {
         if save {
             self.proof_heap.push(proof);
         }
+
+        Ok(())
+    }
+
+    fn hyp(&mut self) -> TResult {
+        let e = self.proof_stack.pop().ok_or(Kind::ProofStackUnderflow)?;
+        let ty = self
+            .store
+            .get_type_of_expr(e)
+            .ok_or(Kind::InvalidStoreExpr)?;
+
+        let sort = self.sorts.get(ty.get_sort()).ok_or(Kind::InvalidSort)?;
+
+        if !sort.is_provable() {
+            return Err(Kind::SortNotProvable);
+        }
+
+        self.hyp_stack.push(e);
+        self.proof_heap.push(e.to_proof());
 
         Ok(())
     }

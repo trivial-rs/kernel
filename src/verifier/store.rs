@@ -55,7 +55,7 @@ impl Type {
         self.0 & ((1u64 << 56) - 1)
     }
 
-    pub fn sort(&self) -> u8 {
+    pub fn get_sort(&self) -> u8 {
         ((self.0 >> 56) & 0x7F) as u8
     }
 }

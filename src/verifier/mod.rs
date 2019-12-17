@@ -112,11 +112,43 @@ impl<'a> Terms<'a> {
     }
 }
 
+pub struct Sort(u8);
+
+impl Sort {
+    fn is_pure(&self) -> bool {
+        (self.0 & 0x01) != 0
+    }
+
+    fn is_strict(&self) -> bool {
+        (self.0 & 0x02) != 0
+    }
+
+    fn is_provable(&self) -> bool {
+        (self.0 & 0x04) != 0
+    }
+
+    fn is_free(&self) -> bool {
+        (self.0 & 0x08) != 0
+    }
+}
+
+pub struct Sorts {
+    data: Vec<Sort>,
+}
+
+impl Sorts {
+    fn get(&self, idx: u8) -> Option<&Sort> {
+        self.data.get(idx as usize)
+    }
+}
+
 pub struct Verifier<'a> {
     proof_stack: Stack,
     proof_heap: Heap,
     unify_stack: Stack,
     unify_heap: Heap,
+    hyp_stack: Stack,
+    sorts: Sorts,
     store: Store,
     theorems: Theorems<'a>,
     terms: Terms<'a>,
