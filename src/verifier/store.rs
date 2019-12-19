@@ -67,6 +67,10 @@ impl StorePointer {
         PackedStorePointer::expr(self.0)
     }
 
+    pub fn to_co_conv(&self) -> PackedStorePointer {
+        PackedStorePointer::co_conv(self.0)
+    }
+
     fn get_idx(&self) -> usize {
         self.0 as usize
     }

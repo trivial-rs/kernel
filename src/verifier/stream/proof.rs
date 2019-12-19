@@ -10,6 +10,12 @@ pub trait Proof {
     fn theorem(&mut self, idx: u32, save: bool) -> TResult;
 
     fn hyp(&mut self) -> TResult;
+
+    fn conv(&mut self) -> TResult;
+
+    fn refl(&mut self) -> TResult;
+
+    fn symm(&mut self) -> TResult;
 }
 
 impl<'a> Proof for Verifier<'a> {
@@ -140,6 +146,68 @@ impl<'a> Proof for Verifier<'a> {
 
         self.hyp_stack.push(e.to_expr());
         self.proof_heap.push(e.to_proof());
+
+        Ok(())
+    }
+
+    fn conv(&mut self) -> TResult {
+        let e2 = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_proof()
+            .ok_or(Kind::InvalidStoreExpr)?;
+        let e1 = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_expr()
+            .ok_or(Kind::InvalidStoreExpr)?;
+
+        self.proof_stack.push(e1.to_proof());
+        self.proof_stack.push(e2.to_expr());
+        self.proof_stack.push(e1.to_co_conv());
+
+        Ok(())
+    }
+
+    fn refl(&mut self) -> TResult {
+        let e1 = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_co_conv()
+            .ok_or(Kind::InvalidStoreExpr)?;
+        let e2 = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_expr()
+            .ok_or(Kind::InvalidStoreExpr)?;
+
+        if e1 != e2 {
+            return Err(Kind::UnifyRefFailure);
+        }
+
+        Ok(())
+    }
+
+    fn symm(&mut self) -> TResult {
+        let e1 = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_co_conv()
+            .ok_or(Kind::InvalidStoreExpr)?;
+        let e2 = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_expr()
+            .ok_or(Kind::InvalidStoreExpr)?;
+
+        self.proof_stack.push(e1.to_expr());
+        self.proof_stack.push(e2.to_co_conv());
 
         Ok(())
     }
