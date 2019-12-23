@@ -50,7 +50,7 @@ impl PackedStorePointer {
         }
     }
 
-    fn to_ptr(&self) -> StorePointer {
+    pub fn to_ptr(&self) -> StorePointer {
         StorePointer((self.0 & 0xFC) >> 2)
     }
 }
@@ -71,7 +71,7 @@ impl StorePointer {
         PackedStorePointer::co_conv(self.0)
     }
 
-    fn get_idx(&self) -> usize {
+    pub fn get_idx(&self) -> usize {
         self.0 as usize
     }
 }
@@ -143,12 +143,23 @@ pub enum StoreElementRef<'a> {
     },
 }
 
-impl<'a> StoreElementRef<'a> {
-    pub fn as_term(self) -> Option<(&'a Type, &'a u32, &'a [PackedStorePointer])> {
-        if let StoreElementRef::Term { ty, id, args } = self {
-            Some((ty, id, args))
+pub struct StoreTerm<'a> {
+    pub ty: &'a Type,
+    pub id: &'a u32,
+    pub args: &'a [PackedStorePointer],
+}
+
+use std::convert::TryFrom;
+use std::convert::TryInto;
+
+impl<'a> TryFrom<StoreElementRef<'a>> for StoreTerm<'a> {
+    type Error = Kind;
+
+    fn try_from(element: StoreElementRef<'a>) -> Result<Self, Self::Error> {
+        if let StoreElementRef::Term { ty, id, args } = element {
+            Ok(StoreTerm { ty, id, args })
         } else {
-            None
+            Err(Kind::InvalidStoreType)
         }
     }
 }
@@ -302,8 +313,8 @@ impl Store {
         }
     }
 
-    pub fn get(&self, ptr: PackedStorePointer) -> Option<StoreElementRef> {
-        let element = self.data.get(ptr.to_ptr().get_idx())?;
+    pub fn get_element(&self, ptr: StorePointer) -> Option<StoreElementRef> {
+        let element = self.data.get(ptr.get_idx())?;
 
         match element {
             InternalStoreElement::Var { ty, var } => Some(StoreElementRef::Var { ty, var }),
@@ -323,5 +334,14 @@ impl Store {
             }
             InternalStoreElement::Conv { e1, e2 } => Some(StoreElementRef::Conv { e1, e2 }),
         }
+    }
+
+    pub fn get<'a, T: TryFrom<StoreElementRef<'a>, Error = Kind>>(
+        &'a self,
+        ptr: StorePointer,
+    ) -> TResult<T> {
+        let element = self.get_element(ptr).ok_or(Kind::InvalidStoreIndex)?;
+
+        element.try_into()
     }
 }

@@ -1,4 +1,5 @@
 use crate::error::Kind;
+use crate::verifier::store::StoreTerm;
 use crate::TResult;
 use crate::Verifier;
 
@@ -16,6 +17,10 @@ pub trait Proof {
     fn refl(&mut self) -> TResult;
 
     fn symm(&mut self) -> TResult;
+
+    fn cong(&mut self) -> TResult;
+
+    fn unfold(&mut self) -> TResult;
 }
 
 impl<'a> Proof for Verifier<'a> {
@@ -208,6 +213,88 @@ impl<'a> Proof for Verifier<'a> {
 
         self.proof_stack.push(e1.to_expr());
         self.proof_stack.push(e2.to_co_conv());
+
+        Ok(())
+    }
+
+    fn cong(&mut self) -> TResult {
+        let e1 = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_co_conv()
+            .ok_or(Kind::InvalidStoreExpr)?;
+
+        let e2 = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_expr()
+            .ok_or(Kind::InvalidStoreExpr)?;
+
+        let e1: StoreTerm = self.store.get(e1)?;
+        let e2: StoreTerm = self.store.get(e2)?;
+
+        if e1.id != e2.id {
+            return Err(Kind::CongUnifyError);
+        }
+
+        for (i, j) in e1.args.iter().zip(e2.args.iter()).rev() {
+            self.proof_stack.push(j.to_ptr().to_expr());
+            self.proof_stack.push(i.to_ptr().to_co_conv());
+        }
+
+        Ok(())
+    }
+
+    fn unfold(&mut self) -> TResult {
+        let e = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_expr()
+            .ok_or(Kind::InvalidStoreType)?;
+
+        let t_ptr = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_expr()
+            .ok_or(Kind::InvalidStoreType)?;
+
+        let t: StoreTerm = self.store.get(t_ptr)?;
+
+        let term = self.terms.get(*t.id).ok_or(Kind::InvalidTerm)?;
+
+        if !term.is_definition() {
+            return Err(Kind::InvalidSort);
+        }
+
+        self.unify_heap.clear();
+        self.unify_heap.extend(t.args);
+
+        // run unify def term.get_return_type e
+
+        let t_prime = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_co_conv()
+            .ok_or(Kind::InvalidStoreType)?;
+
+        if t_ptr != t_prime {
+            return Err(Kind::UnifyTermFailure);
+        }
+
+        let e2 = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_expr()
+            .ok_or(Kind::InvalidStoreType)?;
+
+        self.proof_stack.push(e2.to_expr());
+        self.proof_stack.push(e.to_co_conv());
 
         Ok(())
     }

@@ -14,6 +14,7 @@ pub enum Kind {
     SortNotProvable,
     SortIsStrict,
     TypeError,
+    CongUnifyError,
     BindDep,
     DisjointVariableViolation,
     Impossible,

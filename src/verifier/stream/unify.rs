@@ -1,4 +1,5 @@
 use crate::error::Kind;
+use crate::verifier::store::StoreTerm;
 use crate::TResult;
 use crate::Verifier;
 
@@ -18,15 +19,13 @@ impl<'a> Unify for Verifier<'a> {
     fn term(&mut self, idx: u32, save: bool) -> TResult {
         let ptr = self.unify_stack.pop().ok_or(Kind::UnifyStackUnderflow)?;
 
-        let term = self.store.get(ptr).ok_or(Kind::InvalidStoreIndex)?;
+        let term: StoreTerm = self.store.get(ptr.to_ptr())?;
 
-        let (ty, id, args) = term.as_term().ok_or(Kind::InvalidStoreType)?;
-
-        if *id != idx {
+        if *term.id != idx {
             return Err(Kind::UnifyTermFailure);
         }
 
-        for i in args.iter().rev() {
+        for i in term.args.iter().rev() {
             self.unify_stack.push(*i);
         }
 

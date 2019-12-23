@@ -86,6 +86,7 @@ pub struct Term<'a> {
     nr_args: u16,
     sort: u8,
     binders: &'a [Type],
+    ret_type: Type,
 }
 
 impl<'a> Term<'a> {
@@ -97,8 +98,16 @@ impl<'a> Term<'a> {
         self.sort
     }
 
+    fn is_definition(&self) -> bool {
+        (self.sort & 0x80) != 0
+    }
+
     fn get_binders(&self) -> &[Type] {
         self.binders
+    }
+
+    fn get_return_type(&self) -> Type {
+        self.ret_type
     }
 }
 
