@@ -21,6 +21,12 @@ pub trait Proof {
     fn cong(&mut self) -> TResult;
 
     fn unfold(&mut self) -> TResult;
+
+    fn conv_cut(&mut self) -> TResult;
+
+    fn conv_ref(&mut self, idx: u32) -> TResult;
+
+    fn conv_save(&mut self) -> TResult;
 }
 
 impl<'a> Proof for Verifier<'a> {
@@ -295,6 +301,84 @@ impl<'a> Proof for Verifier<'a> {
 
         self.proof_stack.push(e2.to_expr());
         self.proof_stack.push(e.to_co_conv());
+
+        Ok(())
+    }
+
+    fn conv_cut(&mut self) -> TResult {
+        let e1 = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_co_conv()
+            .ok_or(Kind::InvalidStoreExpr)?;
+
+        let e2 = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_expr()
+            .ok_or(Kind::InvalidStoreExpr)?;
+
+        self.proof_stack.push(e2.to_expr());
+        self.proof_stack.push(e1.to_conv());
+
+        self.proof_stack.push(e2.to_expr());
+        self.proof_stack.push(e1.to_co_conv());
+
+        Ok(())
+    }
+
+    fn conv_ref(&mut self, idx: u32) -> TResult {
+        use crate::verifier::store::{StoreConv, StorePointer};
+
+        let x: StoreConv = self.store.get(StorePointer(idx))?;
+
+        let e1 = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_co_conv()
+            .ok_or(Kind::InvalidStoreExpr)?;
+
+        let e2 = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_expr()
+            .ok_or(Kind::InvalidStoreExpr)?;
+
+        if x.e1.to_ptr() != e1 || x.e2.to_ptr() != e2 {
+            return Err(Kind::UnifyRefFailure);
+        }
+
+        Ok(())
+    }
+
+    fn conv_save(&mut self) -> TResult {
+        let e1 = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_conv()
+            .ok_or(Kind::InvalidStoreExpr)?;
+
+        let e2 = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_expr()
+            .ok_or(Kind::InvalidStoreExpr)?;
+
+        use crate::verifier::store::StoreElement;
+
+        let conv = StoreElement::Conv {
+            e1: e1.to_expr(),
+            e2: e2.to_expr(),
+        };
+
+        let ptr = self.store.push(conv);
+        self.proof_heap.push(ptr);
 
         Ok(())
     }

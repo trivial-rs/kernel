@@ -56,7 +56,7 @@ impl PackedStorePointer {
 }
 
 #[derive(Copy, Clone, PartialEq)]
-pub struct StorePointer(u32);
+pub struct StorePointer(pub u32);
 
 impl StorePointer {
     pub fn to_proof(&self) -> PackedStorePointer {
@@ -69,6 +69,10 @@ impl StorePointer {
 
     pub fn to_co_conv(&self) -> PackedStorePointer {
         PackedStorePointer::co_conv(self.0)
+    }
+
+    pub fn to_conv(&self) -> PackedStorePointer {
+        PackedStorePointer::conv(self.0)
     }
 
     pub fn get_idx(&self) -> usize {
@@ -158,6 +162,23 @@ impl<'a> TryFrom<StoreElementRef<'a>> for StoreTerm<'a> {
     fn try_from(element: StoreElementRef<'a>) -> Result<Self, Self::Error> {
         if let StoreElementRef::Term { ty, id, args } = element {
             Ok(StoreTerm { ty, id, args })
+        } else {
+            Err(Kind::InvalidStoreType)
+        }
+    }
+}
+
+pub struct StoreConv {
+    pub e1: PackedStorePointer,
+    pub e2: PackedStorePointer,
+}
+
+impl<'a> TryFrom<StoreElementRef<'a>> for StoreConv {
+    type Error = Kind;
+
+    fn try_from(element: StoreElementRef<'a>) -> Result<Self, Self::Error> {
+        if let StoreElementRef::Conv { e1, e2 } = element {
+            Ok(StoreConv { e1: *e1, e2: *e2 })
         } else {
             Err(Kind::InvalidStoreType)
         }
