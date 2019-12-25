@@ -21,6 +21,10 @@ impl Stack {
         self.data.pop()
     }
 
+    fn len(&self) -> usize {
+        self.data.len()
+    }
+
     fn get_last(&self, nr: u16) -> TResult<&[PackedStorePointer]> {
         let len = self.data.len();
         self.data
@@ -46,6 +50,14 @@ impl Heap {
 
     fn push(&mut self, idx: PackedStorePointer) {
         self.data.push(idx);
+    }
+
+    fn pop(&mut self) {
+        self.data.pop();
+    }
+
+    fn clone_from(&mut self, other: &Heap) {
+        self.data.clone_from(&other.data);
     }
 
     fn get(&self, idx: u32) -> Option<PackedStorePointer> {
@@ -95,7 +107,7 @@ impl<'a> Term<'a> {
     }
 
     fn get_sort(&self) -> u8 {
-        self.sort
+        self.sort & 0x7F
     }
 
     fn is_definition(&self) -> bool {
