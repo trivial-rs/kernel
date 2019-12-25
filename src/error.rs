@@ -23,7 +23,12 @@ pub enum Kind {
     CongUnifyError,
     BindDep,
     DisjointVariableViolation,
+    UnknownCommand,
+    UnfinishedHypStack,
+    UnfinishedUnifyStack,
+    HypInDefStatement,
     Impossible,
+    StreamExhausted,
 }
 
 pub type TResult<O = ()> = Result<O, Kind>;
