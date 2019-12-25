@@ -17,6 +17,10 @@ impl Stack {
         self.data.push(idx);
     }
 
+    fn clear(&mut self) {
+        self.data.clear();
+    }
+
     fn pop(&mut self) -> Option<PackedStorePointer> {
         self.data.pop()
     }

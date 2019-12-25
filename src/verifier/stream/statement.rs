@@ -11,6 +11,8 @@ pub trait Statement {
 
     fn term_def(&mut self, idx: u32) -> TResult;
 
+    fn axiom_thm(&mut self, idx: u32, is_axiom: bool) -> TResult;
+
     fn allocate_var(proof_heap: &mut Heap, store: &mut Store, x: (usize, &Type));
 }
 
@@ -112,7 +114,6 @@ impl<'a> Statement for Verifier<'a> {
                 return Err(Kind::StackHasMoreThanOne);
             }
 
-            // todo: check if pop is needed, instead of peek
             let expr = self
                 .proof_stack
                 .pop()
@@ -137,6 +138,59 @@ impl<'a> Statement for Verifier<'a> {
 
             // todo: run unify
         }
+
+        Ok(())
+    }
+
+    fn axiom_thm(&mut self, idx: u32, is_axiom: bool) -> TResult {
+        let thm = self.theorems.get(idx).ok_or(Kind::InvalidTheorem)?;
+
+        self.store.clear();
+        self.proof_stack.clear();
+        self.hyp_stack.clear();
+
+        let binders = thm.get_binders();
+
+        let mut next_bv = 1;
+
+        for (i, ty) in binders.iter().enumerate() {
+            self.binder_check(ty, &mut next_bv)?;
+
+            Self::allocate_var(&mut self.proof_heap, &mut self.store, (i, ty));
+        }
+
+        self.next_bv = next_bv;
+
+        // todo: run proof
+        if self.proof_stack.len() != 1 {
+            return Err(Kind::StackHasMoreThanOne);
+        }
+
+        let expr = self.proof_stack.pop().ok_or(Kind::Impossible)?;
+
+        let expr = if is_axiom {
+            expr.as_expr()
+        } else {
+            expr.as_proof()
+        };
+
+        let expr = expr.ok_or(Kind::InvalidStackType)?;
+
+        let sort = self
+            .store
+            .get_type_of_expr(expr)
+            .ok_or(Kind::InvalidStoreExpr)?
+            .get_sort();
+
+        let sort = self.sorts.get(sort).ok_or(Kind::InvalidSort)?;
+
+        if !sort.is_provable() {
+            return Err(Kind::SortNotProvable);
+        }
+
+        self.unify_heap.clone_from(&self.proof_heap);
+
+        // todo: run unify
 
         Ok(())
     }
