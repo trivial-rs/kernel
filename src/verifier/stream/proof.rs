@@ -77,7 +77,7 @@ impl<'a> Proof for Verifier<'a> {
         self.unify_heap.clear();
 
         let mut g_deps = [0; 256];
-        let mut bound = 0;
+        let mut bound: u8 = 0;
         let mut i = 0;
 
         for (&arg, &target_type) in last.iter().zip(types.iter()) {
@@ -116,8 +116,7 @@ impl<'a> Proof for Verifier<'a> {
                     .iter()
                     .enumerate()
                 {
-                    // todo other part
-                    if !target_type.depends_on(i as u8) || (false) {
+                    if !target_type.depends_on(i as u8) || ((j & deps) == 0) {
                         return Err(Kind::DisjointVariableViolation);
                     }
                 }
