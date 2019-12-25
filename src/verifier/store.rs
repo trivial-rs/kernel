@@ -111,6 +111,16 @@ impl Type {
     pub fn get_sort(&self) -> u8 {
         ((self.0 >> 56) & 0x7F) as u8
     }
+
+    pub fn is_compatible_to(&self, other: &Self) -> bool {
+        let diff = self.0 ^ other.0;
+
+        let a = diff & !((1u64 << 56) - 1);
+        let b = a & !(1u64 << 63);
+        let c = self.0 & (1u64 << 63);
+
+        (a == 0) || ((b == 0) && (c != 0))
+    }
 }
 
 pub enum StoreElement<'a> {
@@ -223,6 +233,7 @@ impl Store {
         id: u32,
         args: &[PackedStorePointer],
         types: &[Type],
+        ret_type: Type,
         sort: u8,
         def: bool,
     ) -> TResult<PackedStorePointer> {
@@ -235,6 +246,11 @@ impl Store {
             let arg = arg.as_expr().ok_or(Kind::InvalidStoreType)?;
 
             let ty = self.get_type_of_expr(arg).ok_or(Kind::InvalidStoreExpr)?;
+
+            if !ty.is_compatible_to(&target_type) {
+                return Err(Kind::IncompatibleTypes);
+            }
+
             let mut deps = ty.get_deps();
 
             if target_type.is_bound() {
@@ -260,16 +276,13 @@ impl Store {
             }
         }
 
-        if def {
-            let target_type = types.last().ok_or(Kind::InvalidStoreType)?;
-            let target = target_type.get_deps();
-
+        if def && ret_type.get_deps() != 0 {
             for (_, &j) in g_deps
                 .get(..(bound as usize))
                 .ok_or(Kind::DependencyOverflow)?
                 .iter()
                 .enumerate()
-                .filter(|(i, _)| target_type.depends_on(*i as u8))
+                .filter(|(i, _)| ret_type.depends_on(*i as u8))
             {
                 accum |= j;
             }

@@ -6,7 +6,7 @@ use crate::Verifier;
 pub trait Proof {
     fn reference(&mut self, idx: u32) -> TResult;
 
-    fn term(&mut self, idx: u32, save: bool) -> TResult;
+    fn term(&mut self, idx: u32, save: bool, def: bool) -> TResult;
 
     fn theorem(&mut self, idx: u32, save: bool) -> TResult;
 
@@ -38,13 +38,18 @@ impl<'a> Proof for Verifier<'a> {
         Ok(())
     }
 
-    fn term(&mut self, idx: u32, save: bool) -> TResult {
+    fn term(&mut self, idx: u32, save: bool, def: bool) -> TResult {
         let term = self.terms.get(idx).ok_or(Kind::InvalidTerm)?;
         let last = self.proof_stack.get_last(term.nr_args())?;
 
-        let ptr = self
-            .store
-            .create_term(idx, last, term.get_binders(), term.get_sort(), false)?;
+        let ptr = self.store.create_term(
+            idx,
+            last,
+            term.get_binders(),
+            term.get_return_type(),
+            term.get_sort(),
+            def,
+        )?;
 
         self.proof_stack.truncate_last(term.nr_args());
 

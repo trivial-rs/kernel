@@ -6,6 +6,7 @@ pub enum Kind {
     InvalidTerm,
     InvalidStoreExpr,
     InvalidSort,
+    IncompatibleTypes,
     DependencyOverflow,
     UnifyStackUnderflow,
     UnifyRefFailure,
