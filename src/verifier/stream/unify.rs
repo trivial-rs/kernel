@@ -1,7 +1,7 @@
 use crate::error::Kind;
 use crate::verifier::store::StoreTerm;
+use crate::verifier::State;
 use crate::TResult;
-use crate::Verifier;
 
 #[derive(PartialEq, Copy, Clone)]
 pub enum Mode {
@@ -67,15 +67,15 @@ pub trait Unify {
     }
 }
 
-impl<'a> Unify for Verifier<'a> {
+impl Unify for State {
     fn end(&mut self, mode: Mode) -> TResult {
         if mode == Mode::ThmEnd {
-            if self.state.hyp_stack.len() != 0 {
+            if self.hyp_stack.len() != 0 {
                 return Err(Kind::UnfinishedHypStack);
             }
         }
 
-        if self.state.unify_stack.len() != 0 {
+        if self.unify_stack.len() != 0 {
             return Err(Kind::UnfinishedUnifyStack);
         }
 
@@ -83,40 +83,28 @@ impl<'a> Unify for Verifier<'a> {
     }
 
     fn term(&mut self, idx: u32, save: bool) -> TResult {
-        let ptr = self
-            .state
-            .unify_stack
-            .pop()
-            .ok_or(Kind::UnifyStackUnderflow)?;
+        let ptr = self.unify_stack.pop().ok_or(Kind::UnifyStackUnderflow)?;
 
-        let term: StoreTerm = self.state.store.get(ptr.to_ptr())?;
+        let term: StoreTerm = self.store.get(ptr.to_ptr())?;
 
         if *term.id != idx {
             return Err(Kind::UnifyTermFailure);
         }
 
         for i in term.args.iter().rev() {
-            self.state.unify_stack.push(*i);
+            self.unify_stack.push(*i);
         }
 
         if save {
-            self.state.unify_heap.push(ptr);
+            self.unify_heap.push(ptr);
         }
 
         Ok(())
     }
 
     fn reference(&mut self, idx: u32) -> TResult {
-        let x = self
-            .state
-            .unify_heap
-            .get(idx)
-            .ok_or(Kind::InvalidHeapIndex)?;
-        let y = self
-            .state
-            .unify_stack
-            .pop()
-            .ok_or(Kind::UnifyStackUnderflow)?;
+        let x = self.unify_heap.get(idx).ok_or(Kind::InvalidHeapIndex)?;
+        let y = self.unify_stack.pop().ok_or(Kind::UnifyStackUnderflow)?;
 
         if x == y {
             Ok(())

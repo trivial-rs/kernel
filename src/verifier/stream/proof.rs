@@ -140,7 +140,7 @@ impl<'a> Proof for Verifier<'a> {
 
         let k: &[stream::unify::Command] = &[];
 
-        UnifyRun::run(self, k, stream::unify::Mode::Thm)?;
+        UnifyRun::run(&mut self.state, k, stream::unify::Mode::Thm)?;
 
         let proof = target.to_proof();
 

@@ -18,15 +18,15 @@ pub trait UnifyRun {
 }
 
 use crate::error::Kind;
-use crate::verifier::Verifier;
+use crate::verifier::State;
 
-impl<'a> UnifyRun for Verifier<'a> {
+impl UnifyRun for State {
     fn run<T>(&mut self, stream: T, mode: unify::Mode) -> TResult
     where
         T: IntoIterator,
         T::Item: TryInto<unify::Command>,
     {
-        self.state.unify_stack.clear();
+        self.unify_stack.clear();
 
         for i in stream {
             let command = i.try_into().map_err(|_| Kind::UnknownCommand)?;
