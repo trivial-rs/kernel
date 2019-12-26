@@ -72,6 +72,10 @@ impl Heap {
         self.data.get(idx as usize).copied()
     }
 
+    fn as_slice(&self) -> &[PackedStorePointer] {
+        &self.data
+    }
+
     fn extend(&mut self, ext: &[PackedStorePointer]) {
         self.data.extend_from_slice(ext);
     }

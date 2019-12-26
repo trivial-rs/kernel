@@ -21,6 +21,8 @@ pub enum Kind {
     BadReturnType,
     TypeError,
     TooManyBoundVariables,
+    HypStackUnderflow,
+    DummyCommandInTheorem,
     CongUnifyError,
     BindDep,
     DisjointVariableViolation,

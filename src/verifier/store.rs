@@ -195,6 +195,23 @@ impl<'a> TryFrom<StoreElementRef<'a>> for StoreConv {
     }
 }
 
+pub struct StoreVar {
+    pub ty: Type,
+    pub var: u16,
+}
+
+impl<'a> TryFrom<StoreElementRef<'a>> for StoreVar {
+    type Error = Kind;
+
+    fn try_from(element: StoreElementRef<'a>) -> Result<Self, Self::Error> {
+        if let StoreElementRef::Var { ty, var } = element {
+            Ok(StoreVar { ty: *ty, var: *var })
+        } else {
+            Err(Kind::InvalidStoreType)
+        }
+    }
+}
+
 enum InternalStoreElement {
     Var {
         ty: Type,

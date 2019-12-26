@@ -100,6 +100,7 @@ pub trait Proof {
 
 impl Proof for State {
     fn end(&mut self) -> TResult {
+        // todo: make this check the stack?
         Ok(())
     }
 
