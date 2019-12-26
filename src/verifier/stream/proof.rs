@@ -467,14 +467,14 @@ impl Proof for State {
 
 use std::convert::TryInto;
 
-pub trait ProofRun {
+pub trait Run {
     fn run<T>(&mut self, table: &Table, is_definition: bool, stream: T) -> TResult
     where
         T: IntoIterator,
         T::Item: TryInto<Command>;
 }
 
-impl ProofRun for State {
+impl Run for State {
     fn run<T>(&mut self, table: &Table, is_definition: bool, stream: T) -> TResult
     where
         T: IntoIterator,
