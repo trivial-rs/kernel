@@ -179,22 +179,24 @@ impl Unify for State {
     }
 }
 
+use crate::verifier::store::StorePointer;
 use std::convert::TryInto;
 
 pub trait Run {
-    fn run<T>(&mut self, stream: T, mode: Mode) -> TResult
+    fn run<T>(&mut self, stream: T, mode: Mode, target: StorePointer) -> TResult
     where
         T: IntoIterator,
         T::Item: TryInto<Command>;
 }
 
 impl Run for State {
-    fn run<T>(&mut self, stream: T, mode: Mode) -> TResult
+    fn run<T>(&mut self, stream: T, mode: Mode, target: StorePointer) -> TResult
     where
         T: IntoIterator,
         T::Item: TryInto<Command>,
     {
         self.unify_stack.clear();
+        self.unify_stack.push(target.to_expr());
 
         for i in stream {
             let command = i.try_into().map_err(|_| Kind::UnknownCommand)?;

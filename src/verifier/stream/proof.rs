@@ -230,9 +230,9 @@ impl Proof for State {
         self.unify_heap.extend(last);
         self.proof_stack.truncate_last(thm.get_nr_args());
 
-        let k: &[stream::unify::Command] = &[];
+        let commands = thm.get_unify_commands();
 
-        stream::unify::Run::run(self, k, stream::unify::Mode::Thm)?;
+        stream::unify::Run::run(self, commands, stream::unify::Mode::Thm, target)?;
 
         let proof = target.to_proof();
 
@@ -387,7 +387,9 @@ impl Proof for State {
         self.unify_heap.clear();
         self.unify_heap.extend(t.args);
 
-        // run unify def term.get_return_type e
+        let commands = term.get_unify_commands();
+
+        stream::unify::Run::run(self, commands, stream::unify::Mode::Def, e)?;
 
         let t_prime = self
             .proof_stack

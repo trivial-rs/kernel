@@ -1,4 +1,5 @@
 use crate::error::Kind;
+use crate::verifier::stream;
 use crate::verifier::StoreElement;
 use crate::verifier::Type;
 use crate::TResult;
@@ -116,7 +117,8 @@ impl<'a> Statement for Verifier<'a> {
         self.state.proof_heap.pop();
 
         if term.is_definition() {
-            // todo: run proof stream
+            let commands = &[];
+            stream::proof::Run::run(&mut self.state, &self.table, true, commands)?;
 
             if self.state.proof_stack.len() != 1 {
                 return Err(Kind::StackHasMoreThanOne);
@@ -146,7 +148,9 @@ impl<'a> Statement for Verifier<'a> {
 
             self.state.unify_heap.clone_from(&self.state.proof_heap);
 
-            // todo: run unify
+            let commands = term.get_unify_commands();
+
+            stream::unify::Run::run(&mut self.state, commands, stream::unify::Mode::Def, expr)?;
         }
 
         Ok(())
@@ -171,7 +175,9 @@ impl<'a> Statement for Verifier<'a> {
 
         self.state.next_bv = next_bv;
 
-        // todo: run proof
+        let commands = &[];
+        stream::proof::Run::run(&mut self.state, &self.table, false, commands)?;
+
         if self.state.proof_stack.len() != 1 {
             return Err(Kind::StackHasMoreThanOne);
         }
@@ -201,7 +207,9 @@ impl<'a> Statement for Verifier<'a> {
 
         self.state.unify_heap.clone_from(&self.state.proof_heap);
 
-        // todo: run unify
+        let commands = thm.get_unify_commands();
+
+        stream::unify::Run::run(&mut self.state, commands, stream::unify::Mode::ThmEnd, expr)?;
 
         Ok(())
     }

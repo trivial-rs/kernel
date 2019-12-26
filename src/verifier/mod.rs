@@ -84,6 +84,7 @@ impl Heap {
 pub struct Theorem<'a> {
     nr_args: u16,
     binders: &'a [Type],
+    unify_commands: &'a [stream::unify::Command],
 }
 
 impl<'a> Theorem<'a> {
@@ -93,6 +94,10 @@ impl<'a> Theorem<'a> {
 
     fn get_binders(&self) -> &[Type] {
         self.binders
+    }
+
+    fn get_unify_commands(&self) -> &[stream::unify::Command] {
+        self.unify_commands
     }
 }
 
@@ -111,6 +116,7 @@ pub struct Term<'a> {
     sort: u8,
     binders: &'a [Type],
     ret_type: Type,
+    unify_commands: &'a [stream::unify::Command],
 }
 
 impl<'a> Term<'a> {
@@ -132,6 +138,10 @@ impl<'a> Term<'a> {
 
     fn get_return_type(&self) -> Type {
         self.ret_type
+    }
+
+    fn get_unify_commands(&self) -> &[stream::unify::Command] {
+        self.unify_commands
     }
 }
 
