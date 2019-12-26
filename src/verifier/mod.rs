@@ -60,6 +60,10 @@ impl Heap {
         self.data.pop();
     }
 
+    fn len(&self) -> usize {
+        self.data.len()
+    }
+
     fn clone_from(&mut self, other: &Heap) {
         self.data.clone_from(&other.data);
     }

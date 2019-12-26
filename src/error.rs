@@ -20,6 +20,7 @@ pub enum Kind {
     UnaccountedDependencies,
     BadReturnType,
     TypeError,
+    TooManyBoundVariables,
     CongUnifyError,
     BindDep,
     DisjointVariableViolation,

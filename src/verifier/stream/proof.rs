@@ -1,5 +1,7 @@
 use crate::error::Kind;
+use crate::verifier::store::StoreElement;
 use crate::verifier::store::StoreTerm;
+use crate::verifier::store::Type;
 use crate::verifier::stream;
 use crate::verifier::{State, Table};
 use crate::TResult;
@@ -41,7 +43,7 @@ pub trait Proof {
 
     fn reference(&mut self, idx: u32) -> TResult;
 
-    fn dummy(&mut self, sort: u32) -> TResult;
+    fn dummy(&mut self, table: &Table, sort: u32) -> TResult;
 
     fn term(&mut self, table: &Table, idx: u32, save: bool, def: bool) -> TResult;
 
@@ -73,7 +75,7 @@ pub trait Proof {
                 return Ok(true);
             }
             (Ref, _) => self.reference(command.data),
-            (Dummy, _) => Ok(()),
+            (Dummy, _) => self.dummy(table, command.data),
             (Term, _) => self.term(table, command.data, false, is_definition),
             (TermSave, _) => self.term(table, command.data, true, is_definition),
             (Thm, false) => self.theorem(table, command.data, false),
@@ -109,7 +111,31 @@ impl Proof for State {
         Ok(())
     }
 
-    fn dummy(&mut self, sort: u32) -> TResult {
+    fn dummy(&mut self, table: &Table, sort: u32) -> TResult {
+        let s = table.sorts.get(sort as u8).ok_or(Kind::InvalidSort)?;
+
+        if s.is_strict() {
+            return Err(Kind::SortIsStrict);
+        }
+
+        if (self.next_bv >> 56) == 0 {
+            return Err(Kind::TooManyBoundVariables);
+        }
+
+        let ty = Type::new(sort as u8, self.next_bv, true);
+
+        self.next_bv *= 2;
+
+        let var = StoreElement::Var {
+            ty,
+            var: self.proof_heap.len() as u16,
+        };
+
+        let ptr = self.store.push(var);
+
+        self.proof_stack.push(ptr);
+        self.proof_heap.push(ptr);
+
         Ok(())
     }
 
@@ -450,8 +476,6 @@ impl Proof for State {
             .ok_or(Kind::ProofStackUnderflow)?
             .as_expr()
             .ok_or(Kind::InvalidStoreExpr)?;
-
-        use crate::verifier::store::StoreElement;
 
         let conv = StoreElement::Conv {
             e1: e1.to_expr(),
