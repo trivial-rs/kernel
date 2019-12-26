@@ -27,6 +27,7 @@ pub enum Kind {
     UnfinishedHypStack,
     UnfinishedUnifyStack,
     HypInDefStatement,
+    InvalidOpcodeInDef,
     Impossible,
     StreamExhausted,
 }

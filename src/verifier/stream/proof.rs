@@ -67,26 +67,29 @@ pub trait Proof {
 
     fn execute(&mut self, table: &Table, command: Command, is_definition: bool) -> TResult<bool> {
         use Opcode::*;
-        match command.opcode {
-            End => {
+        match (command.opcode, is_definition) {
+            (End, _) => {
                 self.end()?;
                 return Ok(true);
             }
-            Ref => self.reference(command.data),
-            Dummy => Ok(()),
-            Term => self.term(table, command.data, false, is_definition),
-            TermSave => self.term(table, command.data, true, is_definition),
-            Thm => self.theorem(table, command.data, false),
-            ThmSave => self.theorem(table, command.data, true),
-            Hyp => self.hyp(table),
-            Conv => self.conv(),
-            Refl => self.refl(),
-            Symm => self.symm(),
-            Cong => self.cong(),
-            Unfold => self.unfold(table),
-            ConvCut => self.conv_cut(),
-            ConvRef => self.conv_ref(command.data),
-            ConvSave => self.conv_save(),
+            (Ref, _) => self.reference(command.data),
+            (Dummy, _) => Ok(()),
+            (Term, _) => self.term(table, command.data, false, is_definition),
+            (TermSave, _) => self.term(table, command.data, true, is_definition),
+            (Thm, false) => self.theorem(table, command.data, false),
+            (ThmSave, false) => self.theorem(table, command.data, true),
+            (Thm, true) => Err(Kind::InvalidOpcodeInDef),
+            (ThmSave, true) => Err(Kind::InvalidOpcodeInDef),
+            (Hyp, false) => self.hyp(table),
+            (Hyp, true) => Err(Kind::InvalidOpcodeInDef),
+            (Conv, _) => self.conv(),
+            (Refl, _) => self.refl(),
+            (Symm, _) => self.symm(),
+            (Cong, _) => self.cong(),
+            (Unfold, _) => self.unfold(table),
+            (ConvCut, _) => self.conv_cut(),
+            (ConvRef, _) => self.conv_ref(command.data),
+            (ConvSave, _) => self.conv_save(),
         }?;
 
         Ok(false)
