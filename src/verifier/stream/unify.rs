@@ -125,3 +125,32 @@ impl Unify for State {
         unimplemented!();
     }
 }
+
+use std::convert::TryInto;
+
+pub trait Run {
+    fn run<T>(&mut self, stream: T, mode: Mode) -> TResult
+    where
+        T: IntoIterator,
+        T::Item: TryInto<Command>;
+}
+
+impl Run for State {
+    fn run<T>(&mut self, stream: T, mode: Mode) -> TResult
+    where
+        T: IntoIterator,
+        T::Item: TryInto<Command>,
+    {
+        self.unify_stack.clear();
+
+        for i in stream {
+            let command = i.try_into().map_err(|_| Kind::UnknownCommand)?;
+
+            if self.execute(command, mode)? {
+                return Ok(());
+            }
+        }
+
+        Err(Kind::StreamExhausted)
+    }
+}

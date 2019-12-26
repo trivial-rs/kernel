@@ -4,8 +4,44 @@ use crate::verifier::stream;
 use crate::verifier::{State, Table};
 use crate::TResult;
 
+#[derive(Copy, Clone)]
+pub enum Opcode {
+    End,
+    Ref,
+    Dummy,
+    Term,
+    TermSave,
+    Thm,
+    ThmSave,
+    Hyp,
+    Conv,
+    Refl,
+    Symm,
+    Cong,
+    Unfold,
+    ConvCut,
+    ConvRef,
+    ConvSave,
+}
+
+#[derive(Copy, Clone)]
+pub struct Command {
+    opcode: Opcode,
+    data: u32,
+}
+
+impl From<&Command> for Command {
+    fn from(c: &Command) -> Command {
+        *c
+    }
+}
+
 pub trait Proof {
+    fn end(&mut self) -> TResult;
+
     fn reference(&mut self, idx: u32) -> TResult;
+
+    fn dummy(&mut self, sort: u32) -> TResult;
 
     fn term(&mut self, table: &Table, idx: u32, save: bool, def: bool) -> TResult;
 
@@ -28,14 +64,49 @@ pub trait Proof {
     fn conv_ref(&mut self, idx: u32) -> TResult;
 
     fn conv_save(&mut self) -> TResult;
+
+    fn execute(&mut self, table: &Table, command: Command, is_definition: bool) -> TResult<bool> {
+        use Opcode::*;
+        match command.opcode {
+            End => {
+                self.end()?;
+                return Ok(true);
+            }
+            Ref => self.reference(command.data),
+            Dummy => Ok(()),
+            Term => self.term(table, command.data, false, is_definition),
+            TermSave => self.term(table, command.data, true, is_definition),
+            Thm => self.theorem(table, command.data, false),
+            ThmSave => self.theorem(table, command.data, true),
+            Hyp => self.hyp(table),
+            Conv => self.conv(),
+            Refl => self.refl(),
+            Symm => self.symm(),
+            Cong => self.cong(),
+            Unfold => self.unfold(table),
+            ConvCut => self.conv_cut(),
+            ConvRef => self.conv_ref(command.data),
+            ConvSave => self.conv_save(),
+        }?;
+
+        Ok(false)
+    }
 }
 
 impl Proof for State {
+    fn end(&mut self) -> TResult {
+        Ok(())
+    }
+
     fn reference(&mut self, idx: u32) -> TResult {
         let i = self.proof_heap.get(idx).ok_or(Kind::InvalidHeapIndex)?;
 
         self.proof_stack.push(i);
 
+        Ok(())
+    }
+
+    fn dummy(&mut self, sort: u32) -> TResult {
         Ok(())
     }
 
@@ -129,11 +200,9 @@ impl Proof for State {
         self.unify_heap.extend(last);
         self.proof_stack.truncate_last(thm.get_nr_args());
 
-        use stream::UnifyRun;
-
         let k: &[stream::unify::Command] = &[];
 
-        UnifyRun::run(self, k, stream::unify::Mode::Thm)?;
+        stream::unify::Run::run(self, k, stream::unify::Mode::Thm)?;
 
         let proof = target.to_proof();
 
@@ -390,5 +459,32 @@ impl Proof for State {
         self.proof_heap.push(ptr);
 
         Ok(())
+    }
+}
+
+use std::convert::TryInto;
+
+pub trait ProofRun {
+    fn run<T>(&mut self, table: &Table, is_definition: bool, stream: T) -> TResult
+    where
+        T: IntoIterator,
+        T::Item: TryInto<Command>;
+}
+
+impl ProofRun for State {
+    fn run<T>(&mut self, table: &Table, is_definition: bool, stream: T) -> TResult
+    where
+        T: IntoIterator,
+        T::Item: TryInto<Command>,
+    {
+        for i in stream {
+            let command = i.try_into().map_err(|_| Kind::UnknownCommand)?;
+
+            if self.execute(table, command, is_definition)? {
+                return Ok(());
+            }
+        }
+
+        Err(Kind::StreamExhausted)
     }
 }
