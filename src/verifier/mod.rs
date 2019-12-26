@@ -167,17 +167,21 @@ impl Sorts {
     }
 }
 
-pub struct Verifier<'a> {
+pub struct State {
     proof_stack: Stack,
     proof_heap: Heap,
     unify_stack: Stack,
     unify_heap: Heap,
     hyp_stack: Stack,
-    sorts: Sorts,
     store: Store,
+    next_bv: u64,
+}
+
+pub struct Verifier<'a> {
+    state: State,
+    sorts: Sorts,
     theorems: Theorems<'a>,
     terms: Terms<'a>,
-    next_bv: u64,
 }
 
 impl<'a> Verifier<'a> {

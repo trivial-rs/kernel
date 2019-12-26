@@ -26,7 +26,7 @@ impl<'a> UnifyRun for Verifier<'a> {
         T: IntoIterator,
         T::Item: TryInto<unify::Command>,
     {
-        self.unify_stack.clear();
+        self.state.unify_stack.clear();
 
         for i in stream {
             let command = i.try_into().map_err(|_| Kind::UnknownCommand)?;

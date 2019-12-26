@@ -54,16 +54,16 @@ impl<'a> Statement for Verifier<'a> {
     }
 
     fn load_args(&mut self, binders: &[Type]) -> TResult {
-        self.proof_heap.clear();
+        self.state.proof_heap.clear();
 
         let mut next_bv = 1;
 
         for (i, ty) in binders.iter().enumerate() {
             self.binder_check(ty, &mut next_bv)?;
-            Self::allocate_var(&mut self.proof_heap, &mut self.store, (i, ty));
+            Self::allocate_var(&mut self.state.proof_heap, &mut self.state.store, (i, ty));
         }
 
-        self.next_bv = next_bv;
+        self.state.next_bv = next_bv;
 
         Ok(())
     }
@@ -78,14 +78,14 @@ impl<'a> Statement for Verifier<'a> {
 
         let binders = term.get_binders();
 
-        self.proof_heap.clear();
+        self.state.proof_heap.clear();
 
         let mut next_bv = 1;
 
         for (i, ty) in binders.iter().enumerate() {
             self.binder_check(ty, &mut next_bv)?;
 
-            Self::allocate_var(&mut self.proof_heap, &mut self.store, (i, ty));
+            Self::allocate_var(&mut self.state.proof_heap, &mut self.state.store, (i, ty));
         }
 
         let ret_type = term.get_return_type();
@@ -93,28 +93,29 @@ impl<'a> Statement for Verifier<'a> {
         self.binder_check(&ret_type, &mut next_bv)?;
 
         Self::allocate_var(
-            &mut self.proof_heap,
-            &mut self.store,
+            &mut self.state.proof_heap,
+            &mut self.state.store,
             (binders.len(), &ret_type),
         );
 
-        self.next_bv = next_bv;
+        self.state.next_bv = next_bv;
 
         if term.get_sort() != ret_type.get_sort() {
             return Err(Kind::BadReturnType);
         }
 
         // todo: check if allocation of return var is necessary
-        self.proof_heap.pop();
+        self.state.proof_heap.pop();
 
         if term.is_definition() {
             // todo: run proof stream
 
-            if self.proof_stack.len() != 1 {
+            if self.state.proof_stack.len() != 1 {
                 return Err(Kind::StackHasMoreThanOne);
             }
 
             let expr = self
+                .state
                 .proof_stack
                 .pop()
                 .ok_or(Kind::Impossible)?
@@ -122,6 +123,7 @@ impl<'a> Statement for Verifier<'a> {
                 .ok_or(Kind::InvalidStoreExpr)?;
 
             let ty = self
+                .state
                 .store
                 .get_type_of_expr(expr)
                 .ok_or(Kind::InvalidStoreType)?;
@@ -134,7 +136,7 @@ impl<'a> Statement for Verifier<'a> {
                 return Err(Kind::UnaccountedDependencies);
             }
 
-            self.unify_heap.clone_from(&self.proof_heap);
+            self.state.unify_heap.clone_from(&self.state.proof_heap);
 
             // todo: run unify
         }
@@ -145,9 +147,9 @@ impl<'a> Statement for Verifier<'a> {
     fn axiom_thm(&mut self, idx: u32, is_axiom: bool) -> TResult {
         let thm = self.theorems.get(idx).ok_or(Kind::InvalidTheorem)?;
 
-        self.store.clear();
-        self.proof_stack.clear();
-        self.hyp_stack.clear();
+        self.state.store.clear();
+        self.state.proof_stack.clear();
+        self.state.hyp_stack.clear();
 
         let binders = thm.get_binders();
 
@@ -156,17 +158,17 @@ impl<'a> Statement for Verifier<'a> {
         for (i, ty) in binders.iter().enumerate() {
             self.binder_check(ty, &mut next_bv)?;
 
-            Self::allocate_var(&mut self.proof_heap, &mut self.store, (i, ty));
+            Self::allocate_var(&mut self.state.proof_heap, &mut self.state.store, (i, ty));
         }
 
-        self.next_bv = next_bv;
+        self.state.next_bv = next_bv;
 
         // todo: run proof
-        if self.proof_stack.len() != 1 {
+        if self.state.proof_stack.len() != 1 {
             return Err(Kind::StackHasMoreThanOne);
         }
 
-        let expr = self.proof_stack.pop().ok_or(Kind::Impossible)?;
+        let expr = self.state.proof_stack.pop().ok_or(Kind::Impossible)?;
 
         let expr = if is_axiom {
             expr.as_expr()
@@ -177,6 +179,7 @@ impl<'a> Statement for Verifier<'a> {
         let expr = expr.ok_or(Kind::InvalidStackType)?;
 
         let sort = self
+            .state
             .store
             .get_type_of_expr(expr)
             .ok_or(Kind::InvalidStoreExpr)?
@@ -188,7 +191,7 @@ impl<'a> Statement for Verifier<'a> {
             return Err(Kind::SortNotProvable);
         }
 
-        self.unify_heap.clone_from(&self.proof_heap);
+        self.state.unify_heap.clone_from(&self.state.proof_heap);
 
         // todo: run unify
 

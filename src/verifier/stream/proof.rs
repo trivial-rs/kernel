@@ -1,5 +1,6 @@
 use crate::error::Kind;
 use crate::verifier::store::StoreTerm;
+use crate::verifier::stream;
 use crate::TResult;
 use crate::Verifier;
 
@@ -31,18 +32,22 @@ pub trait Proof {
 
 impl<'a> Proof for Verifier<'a> {
     fn reference(&mut self, idx: u32) -> TResult {
-        let i = self.proof_heap.get(idx).ok_or(Kind::InvalidHeapIndex)?;
+        let i = self
+            .state
+            .proof_heap
+            .get(idx)
+            .ok_or(Kind::InvalidHeapIndex)?;
 
-        self.proof_stack.push(i);
+        self.state.proof_stack.push(i);
 
         Ok(())
     }
 
     fn term(&mut self, idx: u32, save: bool, def: bool) -> TResult {
         let term = self.terms.get(idx).ok_or(Kind::InvalidTerm)?;
-        let last = self.proof_stack.get_last(term.nr_args())?;
+        let last = self.state.proof_stack.get_last(term.nr_args())?;
 
-        let ptr = self.store.create_term(
+        let ptr = self.state.store.create_term(
             idx,
             last,
             term.get_binders(),
@@ -51,12 +56,12 @@ impl<'a> Proof for Verifier<'a> {
             def,
         )?;
 
-        self.proof_stack.truncate_last(term.nr_args());
+        self.state.proof_stack.truncate_last(term.nr_args());
 
-        self.proof_stack.push(ptr);
+        self.state.proof_stack.push(ptr);
 
         if save {
-            self.proof_heap.push(ptr);
+            self.state.proof_heap.push(ptr);
         }
 
         Ok(())
@@ -65,16 +70,17 @@ impl<'a> Proof for Verifier<'a> {
     fn theorem(&mut self, idx: u32, save: bool) -> TResult {
         let thm = self.theorems.get(idx).ok_or(Kind::InvalidTheorem)?;
         let target = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
             .as_expr()
             .ok_or(Kind::InvalidStoreExpr)?;
-        let last = self.proof_stack.get_last(thm.get_nr_args())?;
+        let last = self.state.proof_stack.get_last(thm.get_nr_args())?;
 
         let types = thm.get_binders();
 
-        self.unify_heap.clear();
+        self.state.unify_heap.clear();
 
         let mut g_deps = [0; 256];
         let mut bound: u8 = 0;
@@ -84,6 +90,7 @@ impl<'a> Proof for Verifier<'a> {
             let arg = arg.as_expr().ok_or(Kind::InvalidStoreExpr)?;
 
             let ty = self
+                .state
                 .store
                 .get_type_of_expr(arg)
                 .ok_or(Kind::InvalidStoreExpr)?;
@@ -101,6 +108,7 @@ impl<'a> Proof for Verifier<'a> {
                     let i = i.as_expr().ok_or(Kind::InvalidStoreExpr)?;
 
                     let d = self
+                        .state
                         .store
                         .get_type_of_expr(i)
                         .ok_or(Kind::InvalidStoreExpr)?;
@@ -125,17 +133,21 @@ impl<'a> Proof for Verifier<'a> {
             i += 1;
         }
 
-        self.unify_heap.extend(last);
-        self.proof_stack.truncate_last(thm.get_nr_args());
+        self.state.unify_heap.extend(last);
+        self.state.proof_stack.truncate_last(thm.get_nr_args());
 
-        // todo: run unify
+        use stream::UnifyRun;
+
+        let k: &[stream::unify::Command] = &[];
+
+        UnifyRun::run(self, k, stream::unify::Mode::Thm)?;
 
         let proof = target.to_proof();
 
-        self.proof_stack.push(proof);
+        self.state.proof_stack.push(proof);
 
         if save {
-            self.proof_heap.push(proof);
+            self.state.proof_heap.push(proof);
         }
 
         Ok(())
@@ -143,12 +155,14 @@ impl<'a> Proof for Verifier<'a> {
 
     fn hyp(&mut self) -> TResult {
         let e = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
             .as_expr()
             .ok_or(Kind::InvalidStoreExpr)?;
         let ty = self
+            .state
             .store
             .get_type_of_expr(e)
             .ok_or(Kind::InvalidStoreExpr)?;
@@ -159,41 +173,45 @@ impl<'a> Proof for Verifier<'a> {
             return Err(Kind::SortNotProvable);
         }
 
-        self.hyp_stack.push(e.to_expr());
-        self.proof_heap.push(e.to_proof());
+        self.state.hyp_stack.push(e.to_expr());
+        self.state.proof_heap.push(e.to_proof());
 
         Ok(())
     }
 
     fn conv(&mut self) -> TResult {
         let e2 = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
             .as_proof()
             .ok_or(Kind::InvalidStoreExpr)?;
         let e1 = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
             .as_expr()
             .ok_or(Kind::InvalidStoreExpr)?;
 
-        self.proof_stack.push(e1.to_proof());
-        self.proof_stack.push(e2.to_expr());
-        self.proof_stack.push(e1.to_co_conv());
+        self.state.proof_stack.push(e1.to_proof());
+        self.state.proof_stack.push(e2.to_expr());
+        self.state.proof_stack.push(e1.to_co_conv());
 
         Ok(())
     }
 
     fn refl(&mut self) -> TResult {
         let e1 = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
             .as_co_conv()
             .ok_or(Kind::InvalidStoreExpr)?;
         let e2 = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
@@ -209,26 +227,29 @@ impl<'a> Proof for Verifier<'a> {
 
     fn symm(&mut self) -> TResult {
         let e1 = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
             .as_co_conv()
             .ok_or(Kind::InvalidStoreExpr)?;
         let e2 = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
             .as_expr()
             .ok_or(Kind::InvalidStoreExpr)?;
 
-        self.proof_stack.push(e1.to_expr());
-        self.proof_stack.push(e2.to_co_conv());
+        self.state.proof_stack.push(e1.to_expr());
+        self.state.proof_stack.push(e2.to_co_conv());
 
         Ok(())
     }
 
     fn cong(&mut self) -> TResult {
         let e1 = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
@@ -236,22 +257,23 @@ impl<'a> Proof for Verifier<'a> {
             .ok_or(Kind::InvalidStoreExpr)?;
 
         let e2 = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
             .as_expr()
             .ok_or(Kind::InvalidStoreExpr)?;
 
-        let e1: StoreTerm = self.store.get(e1)?;
-        let e2: StoreTerm = self.store.get(e2)?;
+        let e1: StoreTerm = self.state.store.get(e1)?;
+        let e2: StoreTerm = self.state.store.get(e2)?;
 
         if e1.id != e2.id {
             return Err(Kind::CongUnifyError);
         }
 
         for (i, j) in e1.args.iter().zip(e2.args.iter()).rev() {
-            self.proof_stack.push(j.to_ptr().to_expr());
-            self.proof_stack.push(i.to_ptr().to_co_conv());
+            self.state.proof_stack.push(j.to_ptr().to_expr());
+            self.state.proof_stack.push(i.to_ptr().to_co_conv());
         }
 
         Ok(())
@@ -259,6 +281,7 @@ impl<'a> Proof for Verifier<'a> {
 
     fn unfold(&mut self) -> TResult {
         let e = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
@@ -266,13 +289,14 @@ impl<'a> Proof for Verifier<'a> {
             .ok_or(Kind::InvalidStoreType)?;
 
         let t_ptr = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
             .as_expr()
             .ok_or(Kind::InvalidStoreType)?;
 
-        let t: StoreTerm = self.store.get(t_ptr)?;
+        let t: StoreTerm = self.state.store.get(t_ptr)?;
 
         let term = self.terms.get(*t.id).ok_or(Kind::InvalidTerm)?;
 
@@ -280,12 +304,13 @@ impl<'a> Proof for Verifier<'a> {
             return Err(Kind::InvalidSort);
         }
 
-        self.unify_heap.clear();
-        self.unify_heap.extend(t.args);
+        self.state.unify_heap.clear();
+        self.state.unify_heap.extend(t.args);
 
         // run unify def term.get_return_type e
 
         let t_prime = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
@@ -297,20 +322,22 @@ impl<'a> Proof for Verifier<'a> {
         }
 
         let e2 = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
             .as_expr()
             .ok_or(Kind::InvalidStoreType)?;
 
-        self.proof_stack.push(e2.to_expr());
-        self.proof_stack.push(e.to_co_conv());
+        self.state.proof_stack.push(e2.to_expr());
+        self.state.proof_stack.push(e.to_co_conv());
 
         Ok(())
     }
 
     fn conv_cut(&mut self) -> TResult {
         let e1 = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
@@ -318,17 +345,18 @@ impl<'a> Proof for Verifier<'a> {
             .ok_or(Kind::InvalidStoreExpr)?;
 
         let e2 = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
             .as_expr()
             .ok_or(Kind::InvalidStoreExpr)?;
 
-        self.proof_stack.push(e2.to_expr());
-        self.proof_stack.push(e1.to_conv());
+        self.state.proof_stack.push(e2.to_expr());
+        self.state.proof_stack.push(e1.to_conv());
 
-        self.proof_stack.push(e2.to_expr());
-        self.proof_stack.push(e1.to_co_conv());
+        self.state.proof_stack.push(e2.to_expr());
+        self.state.proof_stack.push(e1.to_co_conv());
 
         Ok(())
     }
@@ -336,9 +364,10 @@ impl<'a> Proof for Verifier<'a> {
     fn conv_ref(&mut self, idx: u32) -> TResult {
         use crate::verifier::store::{StoreConv, StorePointer};
 
-        let x: StoreConv = self.store.get(StorePointer(idx))?;
+        let x: StoreConv = self.state.store.get(StorePointer(idx))?;
 
         let e1 = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
@@ -346,6 +375,7 @@ impl<'a> Proof for Verifier<'a> {
             .ok_or(Kind::InvalidStoreExpr)?;
 
         let e2 = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
@@ -361,6 +391,7 @@ impl<'a> Proof for Verifier<'a> {
 
     fn conv_save(&mut self) -> TResult {
         let e1 = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
@@ -368,6 +399,7 @@ impl<'a> Proof for Verifier<'a> {
             .ok_or(Kind::InvalidStoreExpr)?;
 
         let e2 = self
+            .state
             .proof_stack
             .pop()
             .ok_or(Kind::ProofStackUnderflow)?
@@ -381,8 +413,8 @@ impl<'a> Proof for Verifier<'a> {
             e2: e2.to_expr(),
         };
 
-        let ptr = self.store.push(conv);
-        self.proof_heap.push(ptr);
+        let ptr = self.state.store.push(conv);
+        self.state.proof_heap.push(ptr);
 
         Ok(())
     }
