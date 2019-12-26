@@ -44,7 +44,7 @@ impl<'a> Proof for Verifier<'a> {
     }
 
     fn term(&mut self, idx: u32, save: bool, def: bool) -> TResult {
-        let term = self.terms.get(idx).ok_or(Kind::InvalidTerm)?;
+        let term = self.table.terms.get(idx).ok_or(Kind::InvalidTerm)?;
         let last = self.state.proof_stack.get_last(term.nr_args())?;
 
         let ptr = self.state.store.create_term(
@@ -68,7 +68,7 @@ impl<'a> Proof for Verifier<'a> {
     }
 
     fn theorem(&mut self, idx: u32, save: bool) -> TResult {
-        let thm = self.theorems.get(idx).ok_or(Kind::InvalidTheorem)?;
+        let thm = self.table.theorems.get(idx).ok_or(Kind::InvalidTheorem)?;
         let target = self
             .state
             .proof_stack
@@ -167,7 +167,11 @@ impl<'a> Proof for Verifier<'a> {
             .get_type_of_expr(e)
             .ok_or(Kind::InvalidStoreExpr)?;
 
-        let sort = self.sorts.get(ty.get_sort()).ok_or(Kind::InvalidSort)?;
+        let sort = self
+            .table
+            .sorts
+            .get(ty.get_sort())
+            .ok_or(Kind::InvalidSort)?;
 
         if !sort.is_provable() {
             return Err(Kind::SortNotProvable);
@@ -298,7 +302,7 @@ impl<'a> Proof for Verifier<'a> {
 
         let t: StoreTerm = self.state.store.get(t_ptr)?;
 
-        let term = self.terms.get(*t.id).ok_or(Kind::InvalidTerm)?;
+        let term = self.table.terms.get(*t.id).ok_or(Kind::InvalidTerm)?;
 
         if !term.is_definition() {
             return Err(Kind::InvalidSort);

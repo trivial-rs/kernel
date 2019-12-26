@@ -31,7 +31,11 @@ impl<'a> Statement for Verifier<'a> {
     }
 
     fn binder_check(&self, ty: &Type, bv: &mut u64) -> TResult {
-        let sort = self.sorts.get(ty.get_sort()).ok_or(Kind::InvalidSort)?;
+        let sort = self
+            .table
+            .sorts
+            .get(ty.get_sort())
+            .ok_or(Kind::InvalidSort)?;
         let deps = ty.get_deps();
 
         if ty.is_bound() {
@@ -69,8 +73,12 @@ impl<'a> Statement for Verifier<'a> {
     }
 
     fn term_def(&mut self, idx: u32) -> TResult {
-        let term = self.terms.get(idx).ok_or(Kind::InvalidTerm)?;
-        let sort = self.sorts.get(term.get_sort()).ok_or(Kind::InvalidSort)?;
+        let term = self.table.terms.get(idx).ok_or(Kind::InvalidTerm)?;
+        let sort = self
+            .table
+            .sorts
+            .get(term.get_sort())
+            .ok_or(Kind::InvalidSort)?;
 
         if sort.is_pure() {
             return Err(Kind::SortIsPure);
@@ -145,7 +153,7 @@ impl<'a> Statement for Verifier<'a> {
     }
 
     fn axiom_thm(&mut self, idx: u32, is_axiom: bool) -> TResult {
-        let thm = self.theorems.get(idx).ok_or(Kind::InvalidTheorem)?;
+        let thm = self.table.theorems.get(idx).ok_or(Kind::InvalidTheorem)?;
 
         self.state.store.clear();
         self.state.proof_stack.clear();
@@ -185,7 +193,7 @@ impl<'a> Statement for Verifier<'a> {
             .ok_or(Kind::InvalidStoreExpr)?
             .get_sort();
 
-        let sort = self.sorts.get(sort).ok_or(Kind::InvalidSort)?;
+        let sort = self.table.sorts.get(sort).ok_or(Kind::InvalidSort)?;
 
         if !sort.is_provable() {
             return Err(Kind::SortNotProvable);

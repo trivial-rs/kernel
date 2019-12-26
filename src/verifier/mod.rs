@@ -177,11 +177,15 @@ pub struct State {
     next_bv: u64,
 }
 
-pub struct Verifier<'a> {
-    state: State,
+pub struct Table<'a> {
     sorts: Sorts,
     theorems: Theorems<'a>,
     terms: Terms<'a>,
+}
+
+pub struct Verifier<'a> {
+    state: State,
+    table: Table<'a>,
 }
 
 impl<'a> Verifier<'a> {
