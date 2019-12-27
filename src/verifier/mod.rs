@@ -101,17 +101,7 @@ impl<'a> Theorem<'a> {
     }
 }
 
-pub struct Theorems<'a> {
-    data: Vec<Theorem<'a>>,
-}
-
-impl<'a> Theorems<'a> {
-    fn get(&self, idx: u32) -> Option<&Theorem> {
-        self.data.get(idx as usize)
-    }
-}
-
-pub struct Term<'a> {
+pub struct Term_<'a> {
     nr_args: u16,
     sort: u8,
     binders: &'a [Type],
@@ -119,7 +109,19 @@ pub struct Term<'a> {
     unify_commands: &'a [stream::unify::Command],
 }
 
-impl<'a> Term<'a> {
+pub trait Term {
+    fn nr_args(&self) -> u16;
+
+    fn get_sort(&self) -> u8;
+
+    fn is_definition(&self) -> bool;
+
+    fn get_binders(&self) -> &[Type];
+
+    fn get_return_type(&self) -> Type;
+}
+
+impl<'a> Term for Term_<'a> {
     fn nr_args(&self) -> u16 {
         self.nr_args
     }
@@ -138,20 +140,6 @@ impl<'a> Term<'a> {
 
     fn get_return_type(&self) -> Type {
         self.ret_type
-    }
-
-    fn get_unify_commands(&self) -> &[stream::unify::Command] {
-        self.unify_commands
-    }
-}
-
-pub struct Terms<'a> {
-    data: Vec<Term<'a>>,
-}
-
-impl<'a> Terms<'a> {
-    fn get(&self, idx: u32) -> Option<&Term> {
-        self.data.get(idx as usize)
     }
 }
 
@@ -175,16 +163,6 @@ impl Sort {
     }
 }
 
-pub struct Sorts {
-    data: Vec<Sort>,
-}
-
-impl Sorts {
-    fn get(&self, idx: u8) -> Option<&Sort> {
-        self.data.get(idx as usize)
-    }
-}
-
 pub struct State {
     proof_stack: Stack,
     proof_heap: Heap,
@@ -196,9 +174,51 @@ pub struct State {
 }
 
 pub struct Table<'a> {
-    sorts: Sorts,
-    theorems: Theorems<'a>,
-    terms: Terms<'a>,
+    sorts: Vec<Sort>,
+    theorems: Vec<Theorem<'a>>,
+    terms: Vec<Term_<'a>>,
+}
+
+pub trait CommandStream<'a> {
+    type Iterator: Iterator<Item = &'a stream::unify::Command>;
+
+    fn get_command_stream(&self) -> Self::Iterator;
+}
+
+impl<'a> CommandStream<'a> for Term_<'a> {
+    type Iterator = std::slice::Iter<'a, stream::unify::Command>;
+
+    fn get_command_stream(&self) -> Self::Iterator {
+        self.unify_commands.iter()
+    }
+}
+
+pub trait TableLike<'a> {
+    type Term: CommandStream<'a, Iterator = Self::Iterator> + Term;
+    type Iterator: Iterator<Item = &'a stream::unify::Command>;
+
+    fn get_term(&self, idx: u32) -> Option<&Self::Term>;
+
+    fn get_sort(&self, idx: u8) -> Option<&Sort>;
+
+    fn get_theorem(&self, idx: u32) -> Option<&Theorem>;
+}
+
+impl<'a> TableLike<'a> for Table<'a> {
+    type Term = Term_<'a>;
+    type Iterator = std::slice::Iter<'a, stream::unify::Command>;
+
+    fn get_term(&self, idx: u32) -> Option<&Self::Term> {
+        self.terms.get(idx as usize)
+    }
+
+    fn get_sort(&self, idx: u8) -> Option<&Sort> {
+        self.sorts.get(idx as usize)
+    }
+
+    fn get_theorem(&self, idx: u32) -> Option<&Theorem> {
+        self.theorems.get(idx as usize)
+    }
 }
 
 pub struct Verifier<'a> {

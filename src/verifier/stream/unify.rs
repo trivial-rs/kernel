@@ -209,3 +209,56 @@ impl Run for State {
         Err(Kind::StreamExhausted)
     }
 }
+
+pub struct Stepper<T> {
+    started: bool,
+    mode: Mode,
+    target: StorePointer,
+    stream: T,
+}
+
+impl<T> Stepper<T>
+where
+    T: Iterator,
+    T::Item: TryInto<Command>,
+{
+    pub fn new(mode: Mode, target: StorePointer, stream: T) -> Stepper<T> {
+        Stepper {
+            started: false,
+            mode,
+            target,
+            stream,
+        }
+    }
+
+    pub fn step(&mut self, state: &mut State) -> Option<TResult> {
+        if !self.started {
+            state.unify_stack.clear();
+            state.unify_stack.push(self.target.to_expr());
+            self.started = true;
+            Some(Ok(()))
+        } else {
+            let el = self.stream.next();
+
+            match el {
+                Some(i) => {
+                    let command = i.try_into().map_err(|_| Kind::UnknownCommand);
+
+                    match command {
+                        Ok(command) => {
+                            if state.execute(command, self.mode).ok()? {
+                                None
+                            } else {
+                                Some(Ok(()))
+                            }
+                        }
+                        Err(_) => Some(Err(Kind::UnknownCommand)),
+                    }
+                }
+                None => None,
+            }
+        }
+    }
+}
+
+pub type SliceStepper<'a> = Stepper<std::slice::Iter<'a, Command>>;

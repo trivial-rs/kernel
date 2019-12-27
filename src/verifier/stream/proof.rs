@@ -3,10 +3,10 @@ use crate::verifier::store::StoreElement;
 use crate::verifier::store::StoreTerm;
 use crate::verifier::store::Type;
 use crate::verifier::stream;
-use crate::verifier::{State, Table};
+use crate::verifier::{CommandStream, State, Table, TableLike, Term};
 use crate::TResult;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum Opcode {
     End,
     Ref,
@@ -38,18 +38,23 @@ impl From<&Command> for Command {
     }
 }
 
-pub trait Proof {
+use crate::verifier::store::StorePointer;
+
+pub trait Proof<'a, T>
+where
+    T: TableLike<'a>,
+{
     fn end(&mut self) -> TResult;
 
     fn reference(&mut self, idx: u32) -> TResult;
 
-    fn dummy(&mut self, table: &Table, sort: u32) -> TResult;
+    fn dummy(&mut self, table: &T, sort: u32) -> TResult;
 
-    fn term(&mut self, table: &Table, idx: u32, save: bool, def: bool) -> TResult;
+    fn term(&mut self, table: &T, idx: u32, save: bool, def: bool) -> TResult;
 
-    fn theorem(&mut self, table: &Table, idx: u32, save: bool) -> TResult;
+    fn theorem(&mut self, table: &T, idx: u32, save: bool) -> TResult;
 
-    fn hyp(&mut self, table: &Table) -> TResult;
+    fn hyp(&mut self, table: &T) -> TResult;
 
     fn conv(&mut self) -> TResult;
 
@@ -59,7 +64,11 @@ pub trait Proof {
 
     fn cong(&mut self) -> TResult;
 
-    fn unfold(&mut self, table: &Table) -> TResult;
+    fn unfold_start(&mut self, table: &'a T) -> TResult<stream::unify::Stepper<T::Iterator>>;
+
+    fn unfold_end(&mut self, t_ptr: StorePointer, e: StorePointer) -> TResult;
+
+    fn unfold(&mut self, table: &T) -> TResult;
 
     fn conv_cut(&mut self) -> TResult;
 
@@ -67,7 +76,7 @@ pub trait Proof {
 
     fn conv_save(&mut self) -> TResult;
 
-    fn execute(&mut self, table: &Table, command: Command, is_definition: bool) -> TResult<bool> {
+    fn execute(&mut self, table: &T, command: Command, is_definition: bool) -> TResult<bool> {
         use Opcode::*;
         match (command.opcode, is_definition) {
             (End, _) => {
@@ -96,9 +105,51 @@ pub trait Proof {
 
         Ok(false)
     }
+
+    fn step(
+        &mut self,
+        table: &'a T,
+        command: Command,
+        is_definition: bool,
+    ) -> TResult<Option<stream::unify::Stepper<T::Iterator>>> {
+        use Opcode::*;
+        match (command.opcode, is_definition) {
+            (End, _) => {
+                self.end()?;
+                return Ok(None);
+            }
+            (Ref, _) => self.reference(command.data),
+            (Dummy, _) => self.dummy(table, command.data),
+            (Term, _) => self.term(table, command.data, false, is_definition),
+            (TermSave, _) => self.term(table, command.data, true, is_definition),
+            (Thm, false) => self.theorem(table, command.data, false),
+            (ThmSave, false) => self.theorem(table, command.data, true),
+            (Thm, true) => Err(Kind::InvalidOpcodeInDef),
+            (ThmSave, true) => Err(Kind::InvalidOpcodeInDef),
+            (Hyp, false) => self.hyp(table),
+            (Hyp, true) => Err(Kind::InvalidOpcodeInDef),
+            (Conv, _) => self.conv(),
+            (Refl, _) => self.refl(),
+            (Symm, _) => self.symm(),
+            (Cong, _) => self.cong(),
+            (Unfold, _) => {
+                let a = self.unfold_start(table)?;
+                return Ok(Some(a));
+            }
+            (ConvCut, _) => self.conv_cut(),
+            (ConvRef, _) => self.conv_ref(command.data),
+            (ConvSave, _) => self.conv_save(),
+        }?;
+
+        //
+        Ok(None)
+    }
 }
 
-impl Proof for State {
+impl<'a, T> Proof<'a, T> for State
+where
+    T: TableLike<'a>,
+{
     fn end(&mut self) -> TResult {
         // todo: make this check the stack?
         Ok(())
@@ -112,8 +163,8 @@ impl Proof for State {
         Ok(())
     }
 
-    fn dummy(&mut self, table: &Table, sort: u32) -> TResult {
-        let s = table.sorts.get(sort as u8).ok_or(Kind::InvalidSort)?;
+    fn dummy(&mut self, table: &T, sort: u32) -> TResult {
+        let s = table.get_sort(sort as u8).ok_or(Kind::InvalidSort)?;
 
         if s.is_strict() {
             return Err(Kind::SortIsStrict);
@@ -140,8 +191,8 @@ impl Proof for State {
         Ok(())
     }
 
-    fn term(&mut self, table: &Table, idx: u32, save: bool, def: bool) -> TResult {
-        let term = table.terms.get(idx).ok_or(Kind::InvalidTerm)?;
+    fn term(&mut self, table: &T, idx: u32, save: bool, def: bool) -> TResult {
+        let term = table.get_term(idx).ok_or(Kind::InvalidTerm)?;
         let last = self.proof_stack.get_last(term.nr_args())?;
 
         let ptr = self.store.create_term(
@@ -164,8 +215,8 @@ impl Proof for State {
         Ok(())
     }
 
-    fn theorem(&mut self, table: &Table, idx: u32, save: bool) -> TResult {
-        let thm = table.theorems.get(idx).ok_or(Kind::InvalidTheorem)?;
+    fn theorem(&mut self, table: &T, idx: u32, save: bool) -> TResult {
+        let thm = table.get_theorem(idx).ok_or(Kind::InvalidTheorem)?;
         let target = self
             .proof_stack
             .pop()
@@ -245,7 +296,7 @@ impl Proof for State {
         Ok(())
     }
 
-    fn hyp(&mut self, table: &Table) -> TResult {
+    fn hyp(&mut self, table: &T) -> TResult {
         let e = self
             .proof_stack
             .pop()
@@ -257,7 +308,7 @@ impl Proof for State {
             .get_type_of_expr(e)
             .ok_or(Kind::InvalidStoreExpr)?;
 
-        let sort = table.sorts.get(ty.get_sort()).ok_or(Kind::InvalidSort)?;
+        let sort = table.get_sort(ty.get_sort()).ok_or(Kind::InvalidSort)?;
 
         if !sort.is_provable() {
             return Err(Kind::SortNotProvable);
@@ -361,7 +412,7 @@ impl Proof for State {
         Ok(())
     }
 
-    fn unfold(&mut self, table: &Table) -> TResult {
+    fn unfold_start(&mut self, table: &'a T) -> TResult<stream::unify::Stepper<T::Iterator>> {
         let e = self
             .proof_stack
             .pop()
@@ -378,7 +429,7 @@ impl Proof for State {
 
         let t: StoreTerm = self.store.get(t_ptr)?;
 
-        let term = table.terms.get(*t.id).ok_or(Kind::InvalidTerm)?;
+        let term = table.get_term(*t.id).ok_or(Kind::InvalidTerm)?;
 
         if !term.is_definition() {
             return Err(Kind::InvalidSort);
@@ -387,7 +438,67 @@ impl Proof for State {
         self.unify_heap.clear();
         self.unify_heap.extend(t.args);
 
-        let commands = term.get_unify_commands();
+        let commands = term.get_command_stream();
+
+        //stream::unify::Run::run(self, commands, stream::unify::Mode::Def, e)?;
+
+        let stepper = stream::unify::Stepper::new(stream::unify::Mode::Def, e, commands);
+
+        Ok(stepper)
+    }
+
+    fn unfold_end(&mut self, t_ptr: StorePointer, e: StorePointer) -> TResult {
+        let t_prime = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_co_conv()
+            .ok_or(Kind::InvalidStoreType)?;
+
+        if t_ptr != t_prime {
+            return Err(Kind::UnifyTermFailure);
+        }
+
+        let e2 = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_expr()
+            .ok_or(Kind::InvalidStoreType)?;
+
+        self.proof_stack.push(e2.to_expr());
+        self.proof_stack.push(e.to_co_conv());
+
+        Ok(())
+    }
+
+    fn unfold(&mut self, table: &T) -> TResult {
+        let e = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_expr()
+            .ok_or(Kind::InvalidStoreType)?;
+
+        let t_ptr = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_expr()
+            .ok_or(Kind::InvalidStoreType)?;
+
+        let t: StoreTerm = self.store.get(t_ptr)?;
+
+        let term = table.get_term(*t.id).ok_or(Kind::InvalidTerm)?;
+
+        if !term.is_definition() {
+            return Err(Kind::InvalidSort);
+        }
+
+        self.unify_heap.clear();
+        self.unify_heap.extend(t.args);
+
+        let commands = term.get_command_stream();
 
         stream::unify::Run::run(self, commands, stream::unify::Mode::Def, e)?;
 
@@ -516,5 +627,108 @@ impl Run for State {
         }
 
         Err(Kind::StreamExhausted)
+    }
+}
+
+pub enum Continue<T> {
+    Normal,
+    UnifyTheorem { stepper: stream::unify::Stepper<T> },
+    ContinueTheorem,
+    UnifyUnfold { stepper: stream::unify::Stepper<T> },
+    ContinueUnfold,
+}
+
+pub struct Stepper<'a, S, C, T>
+where
+    C: CommandStream<'a>,
+{
+    // we can't own &mut State, because of ownership issues
+    table: &'a T,
+    is_definition: bool,
+    stream: S,
+    con: Continue<C::Iterator>,
+}
+
+impl<'a, S, C, T> Stepper<'a, S, C, T>
+where
+    S: Iterator,
+    S::Item: TryInto<Command>,
+    C: CommandStream<'a>,
+    T: TableLike<'a, Iterator = C::Iterator>,
+{
+    pub fn new(table: &'a T, is_definition: bool, stream: S) -> Stepper<'a, S, C, T> {
+        Stepper {
+            table,
+            is_definition,
+            stream,
+            con: Continue::Normal,
+        }
+    }
+
+    pub fn step(&mut self, state: &mut State) -> Option<TResult> {
+        let (next, ret) = match &mut self.con {
+            Continue::Normal => {
+                let el = self.stream.next();
+
+                let (next_state, ret) = match el {
+                    Some(i) => {
+                        let command = i.try_into().ok()?;
+
+                        let k = match state.step(self.table, command, self.is_definition) {
+                            Ok(x) => {
+                                let next_state = match x {
+                                    Some(x) => {
+                                        if command.opcode == Opcode::Thm {
+                                            Continue::UnifyTheorem { stepper: x }
+                                        } else {
+                                            Continue::UnifyUnfold { stepper: x }
+                                        }
+                                    }
+                                    None => Continue::Normal,
+                                };
+
+                                Some(next_state)
+                            }
+                            Err(x) => return Some(Err(x)),
+                        };
+
+                        (k, None)
+                    }
+                    None => (None, None),
+                };
+
+                (next_state, ret)
+            }
+            Continue::UnifyUnfold { ref mut stepper } => {
+                let (next_state, ret) = match stepper.step(state) {
+                    Some(x) => (None, Some(x)),
+                    None => (Some(Continue::ContinueUnfold), None),
+                };
+
+                (next_state, ret)
+            }
+            Continue::ContinueUnfold => {
+                //
+                (Some(Continue::Normal), Some(Ok(())))
+            }
+            Continue::UnifyTheorem { ref mut stepper } => {
+                let (next_state, ret) = match stepper.step(state) {
+                    Some(x) => (None, Some(x)),
+                    None => (Some(Continue::ContinueTheorem), None),
+                };
+
+                (next_state, ret)
+            }
+            Continue::ContinueTheorem => {
+                //
+                (Some(Continue::Normal), Some(Ok(())))
+            }
+        };
+
+        if let Some(x) = next {
+            self.con = x;
+        }
+
+        ret
     }
 }
