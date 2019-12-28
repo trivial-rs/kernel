@@ -23,6 +23,18 @@ pub struct Command {
     opcode: Opcode,
 }
 
+use crate::verifier::stream::proof;
+
+pub trait StatementStream: Iterator
+where
+    <Self as Iterator>::Item: TryInto<Opcode>,
+    <Self::AsProof as Iterator>::Item: TryInto<proof::Command>,
+{
+    type AsProof: Iterator;
+
+    fn as_proof_stream(&self) -> Self::AsProof;
+}
+
 fn allocate_var(proof_heap: &mut Heap, store: &mut Store, x: (usize, &Type)) {
     let var = StoreElement::Var {
         ty: *x.1,
@@ -77,19 +89,18 @@ pub trait Statement {
     fn axiom_thm(&mut self, idx: u32, is_axiom: bool) -> TResult;
 }
 
-pub enum TermDef<'a, S, C, T>
+pub enum TermDef<'a, S, T>
 where
     S: Iterator,
     S::Item: TryInto<stream::proof::Command>,
-    C: CommandStream<'a>,
-    T: TableLike<'a, Iterator = C::Iterator>,
+    T: TableLike<'a>,
 {
     Start {
         idx: u32,
         stream: S,
     },
     RunProof {
-        stepper: stream::proof::Stepper<'a, S, C, T>,
+        stepper: stream::proof::Stepper<'a, S, T>,
         ret_type: Type,
         term: &'a T::Term,
     },
@@ -98,26 +109,34 @@ where
         term: &'a T::Term,
     },
     RunUnify {
-        stepper: stream::unify::Stepper<C::Iterator>,
+        stepper: stream::unify::Stepper<T::Iterator>,
     },
     Done,
 }
 
 use std::convert::TryInto;
 
-impl<'a, S, C, T> TermDef<'a, S, C, T>
+impl<'a, S, T> TermDef<'a, S, T>
 where
     S: Iterator,
     S::Item: TryInto<stream::proof::Command>,
-    C: CommandStream<'a>,
-    T: TableLike<'a, Iterator = C::Iterator>,
+    T: TableLike<'a>,
 {
-    pub fn new(idx: u32, stream: S) -> TermDef<'a, S, C, T> {
+    pub fn new(idx: u32, stream: S) -> TermDef<'a, S, T> {
         TermDef::Start { idx, stream }
     }
 
-    pub fn step(self, state: &mut State, table: &'a T) -> TResult<TermDef<'a, S, C, T>> {
-        let next = match self {
+    pub fn is_done(&self) -> bool {
+        match self {
+            TermDef::Done => true,
+            _ => false,
+        }
+    }
+
+    pub fn step(&mut self, state: &mut State, table: &'a T) -> TResult {
+        let old = std::mem::replace(self, Self::Done);
+
+        let next = match old {
             TermDef::Start { idx, stream } => {
                 let term = table.get_term(idx).ok_or(Kind::InvalidTerm)?;
                 let sort = table.get_sort(term.get_sort()).ok_or(Kind::InvalidSort)?;
@@ -157,7 +176,7 @@ where
                 // todo: check if allocation of return var is necessary
                 state.proof_heap.pop();
 
-                if term.is_definition() {
+                if !term.is_definition() {
                     TermDef::Done
                 } else {
                     let stepper = stream::proof::Stepper::new(table, true, stream);
@@ -220,7 +239,9 @@ where
             TermDef::Done => TermDef::Done,
         };
 
-        Ok(next)
+        std::mem::replace(self, next);
+
+        Ok(())
     }
 }
 
@@ -368,13 +389,123 @@ impl<'a> Statement for Verifier<'a> {
     }
 }
 
-pub struct Stepper {
+enum StepState<'a, S, T>
+where
+    S: Iterator,
+    S::Item: TryInto<stream::proof::Command>,
+    T: TableLike<'a>,
+{
+    Normal,
+    TermDef(TermDef<'a, S, T>),
+}
+
+pub struct Stepper<'a, S, T>
+where
+    S: StatementStream + Iterator,
+    <S as Iterator>::Item: TryInto<Opcode>,
+    <S::AsProof as Iterator>::Item: TryInto<proof::Command>,
+    T: TableLike<'a>,
+{
+    stream: S,
+    state: StepState<'a, S::AsProof, T>,
+}
+
+impl<'a, S, T> Stepper<'a, S, T>
+where
+    S: StatementStream + Iterator,
+    <S as Iterator>::Item: TryInto<Opcode>,
+    <S::AsProof as Iterator>::Item: TryInto<proof::Command>,
+    T: TableLike<'a>,
+{
+    pub fn new(stream: S) -> Stepper<'a, S, T> {
+        Stepper {
+            stream,
+            state: StepState::Normal,
+        }
+    }
+
+    pub fn step(&mut self, state: &mut State, table: &'a T) -> Option<TResult> {
+        let mut old = std::mem::replace(&mut self.state, StepState::Normal);
+
+        match old {
+            StepState::Normal => self.normal(state),
+            StepState::TermDef(ref mut td) => {
+                if td.is_done() {
+                    std::mem::replace(&mut self.state, StepState::Normal);
+                    Some(Ok(()))
+                } else {
+                    let ret = td.step(state, table);
+                    std::mem::replace(&mut self.state, old);
+                    Some(ret)
+                }
+            }
+            _ => Some(Ok(())),
+        }
+    }
+
+    fn normal(&mut self, state: &State) -> Option<TResult> {
+        if let Some(x) = self.stream.next() {
+            let x = x.try_into().ok()?;
+
+            match x {
+                Opcode::End => {
+                    //
+                }
+                Opcode::Sort => {
+                    //
+                }
+                Opcode::TermDef => {
+                    let td = TermDef::new(0, self.stream.as_proof_stream());
+
+                    self.state = StepState::TermDef(td);
+                }
+                Opcode::AxiomThm => {
+                    self.state = StepState::Normal;
+                    //
+                }
+            }
+
+            Some(Ok(()))
+        } else {
+            None
+        }
+    }
+}
+
+pub struct StatementSliceIter<'a> {
+    data: &'a [Opcode],
+}
+
+impl<'a> StatementSliceIter<'a> {
+    fn new(data: &'a [Opcode]) -> StatementSliceIter<'a> {
+        StatementSliceIter { data }
+    }
+}
+
+impl<'a> Iterator for StatementSliceIter<'a> {
+    type Item = Opcode;
+
+    fn next(&mut self) -> Option<Opcode> {
+        None
+    }
+}
+
+pub struct ProofSliceIter {
     //
 }
 
-impl Stepper {
-    pub fn step(&mut self, state: &State) -> Option<TResult> {
-        //
-        Some(Ok(()))
+impl Iterator for ProofSliceIter {
+    type Item = stream::proof::Command;
+
+    fn next(&mut self) -> Option<stream::proof::Command> {
+        None
+    }
+}
+
+impl<'a> StatementStream for StatementSliceIter<'a> {
+    type AsProof = ProofSliceIter;
+
+    fn as_proof_stream(&self) -> ProofSliceIter {
+        unimplemented!();
     }
 }

@@ -638,25 +638,24 @@ pub enum Continue<T> {
     ContinueUnfold,
 }
 
-pub struct Stepper<'a, S, C, T>
+pub struct Stepper<'a, S, T>
 where
-    C: CommandStream<'a>,
+    T: TableLike<'a>,
 {
     // we can't own &mut State, because of ownership issues
     table: &'a T,
     is_definition: bool,
     stream: S,
-    con: Continue<C::Iterator>,
+    con: Continue<T::Iterator>,
 }
 
-impl<'a, S, C, T> Stepper<'a, S, C, T>
+impl<'a, S, T> Stepper<'a, S, T>
 where
     S: Iterator,
     S::Item: TryInto<Command>,
-    C: CommandStream<'a>,
-    T: TableLike<'a, Iterator = C::Iterator>,
+    T: TableLike<'a>,
 {
-    pub fn new(table: &'a T, is_definition: bool, stream: S) -> Stepper<'a, S, C, T> {
+    pub fn new(table: &'a T, is_definition: bool, stream: S) -> Stepper<'a, S, T> {
         Stepper {
             table,
             is_definition,
