@@ -6,13 +6,18 @@ use crate::TResult;
 use store::PackedStorePointer;
 use store::Store;
 use store::StoreElement;
-use store::Type;
+pub use store::Type;
+pub use stream::Stepper;
 
 pub struct Stack {
     data: Vec<PackedStorePointer>,
 }
 
 impl Stack {
+    fn new() -> Stack {
+        Stack { data: Vec::new() }
+    }
+
     fn push(&mut self, idx: PackedStorePointer) {
         self.data.push(idx);
     }
@@ -48,6 +53,10 @@ pub struct Heap {
 }
 
 impl Heap {
+    fn new() -> Heap {
+        Heap { data: Vec::new() }
+    }
+
     fn clear(&mut self) {
         self.data.clear();
     }
@@ -82,14 +91,13 @@ impl Heap {
 }
 
 pub struct Theorem<'a> {
-    nr_args: u16,
-    binders: &'a [Type],
-    unify_commands: &'a [stream::unify::Command],
+    pub binders: &'a [Type],
+    pub unify_commands: &'a [stream::unify::Command],
 }
 
 impl<'a> Theorem<'a> {
     fn get_nr_args(&self) -> u16 {
-        self.nr_args
+        self.binders.len() as u16
     }
 
     fn get_binders(&self) -> &[Type] {
@@ -102,11 +110,10 @@ impl<'a> Theorem<'a> {
 }
 
 pub struct Term_<'a> {
-    nr_args: u16,
-    sort: u8,
-    binders: &'a [Type],
-    ret_type: Type,
-    unify_commands: &'a [stream::unify::Command],
+    pub sort: u8,
+    pub binders: &'a [Type],
+    pub ret_type: Type,
+    pub unify_commands: &'a [stream::unify::Command],
 }
 
 pub trait Term {
@@ -123,7 +130,7 @@ pub trait Term {
 
 impl<'a> Term for Term_<'a> {
     fn nr_args(&self) -> u16 {
-        self.nr_args
+        self.binders.len() as u16
     }
 
     fn get_sort(&self) -> u8 {
@@ -143,7 +150,7 @@ impl<'a> Term for Term_<'a> {
     }
 }
 
-pub struct Sort(u8);
+pub struct Sort(pub u8);
 
 impl Sort {
     fn is_pure(&self) -> bool {
@@ -173,10 +180,46 @@ pub struct State {
     next_bv: u64,
 }
 
+impl State {
+    pub fn new() -> State {
+        State {
+            proof_stack: Stack::new(),
+            proof_heap: Heap::new(),
+            unify_stack: Stack::new(),
+            unify_heap: Heap::new(),
+            hyp_stack: Stack::new(),
+            store: Store::new(),
+            next_bv: 0,
+        }
+    }
+}
+
 pub struct Table<'a> {
     sorts: Vec<Sort>,
     theorems: Vec<Theorem<'a>>,
     terms: Vec<Term_<'a>>,
+}
+
+impl<'a> Table<'a> {
+    pub fn new() -> Table<'a> {
+        Table {
+            sorts: Vec::new(),
+            theorems: Vec::new(),
+            terms: Vec::new(),
+        }
+    }
+
+    pub fn add_sort(&mut self, sort: Sort) {
+        self.sorts.push(sort);
+    }
+
+    pub fn add_theorem(&mut self, theorem: Theorem<'a>) {
+        self.theorems.push(theorem);
+    }
+
+    pub fn add_term(&mut self, term: Term_<'a>) {
+        self.terms.push(term);
+    }
 }
 
 pub trait CommandStream<'a> {

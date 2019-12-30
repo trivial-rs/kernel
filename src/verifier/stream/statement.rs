@@ -8,8 +8,8 @@ use crate::verifier::Table;
 use crate::verifier::TableLike;
 use crate::verifier::Term;
 use crate::verifier::Type;
+use crate::verifier::Verifier;
 use crate::TResult;
-use crate::Verifier;
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum Opcode {
@@ -469,43 +469,5 @@ where
         } else {
             None
         }
-    }
-}
-
-pub struct StatementSliceIter<'a> {
-    data: &'a [Opcode],
-}
-
-impl<'a> StatementSliceIter<'a> {
-    fn new(data: &'a [Opcode]) -> StatementSliceIter<'a> {
-        StatementSliceIter { data }
-    }
-}
-
-impl<'a> Iterator for StatementSliceIter<'a> {
-    type Item = Opcode;
-
-    fn next(&mut self) -> Option<Opcode> {
-        None
-    }
-}
-
-pub struct ProofSliceIter {
-    //
-}
-
-impl Iterator for ProofSliceIter {
-    type Item = stream::proof::Command;
-
-    fn next(&mut self) -> Option<stream::proof::Command> {
-        None
-    }
-}
-
-impl<'a> StatementStream for StatementSliceIter<'a> {
-    type AsProof = ProofSliceIter;
-
-    fn as_proof_stream(&self) -> ProofSliceIter {
-        unimplemented!();
     }
 }
