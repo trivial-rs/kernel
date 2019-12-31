@@ -9,6 +9,7 @@ use store::StoreElement;
 pub use store::Type;
 pub use stream::Stepper;
 
+#[derive(Debug)]
 pub struct Stack {
     data: Vec<PackedStorePointer>,
 }
@@ -48,6 +49,7 @@ impl Stack {
     }
 }
 
+#[derive(Debug)]
 pub struct Heap {
     data: Vec<PackedStorePointer>,
 }
@@ -90,6 +92,7 @@ impl Heap {
     }
 }
 
+#[derive(Debug)]
 pub struct Theorem<'a> {
     pub binders: &'a [Type],
     pub unify_commands: &'a [stream::unify::Command],
@@ -109,6 +112,7 @@ impl<'a> Theorem<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct Term_<'a> {
     pub sort: u8,
     pub binders: &'a [Type],
@@ -150,6 +154,7 @@ impl<'a> Term for Term_<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct Sort(pub u8);
 
 impl Sort {
@@ -170,6 +175,7 @@ impl Sort {
     }
 }
 
+#[derive(Debug)]
 pub struct State {
     proof_stack: Stack,
     proof_heap: Heap,
@@ -194,6 +200,7 @@ impl State {
     }
 }
 
+#[derive(Debug)]
 pub struct Table<'a> {
     sorts: Vec<Sort>,
     theorems: Vec<Theorem<'a>>,
@@ -237,8 +244,8 @@ impl<'a> CommandStream<'a> for Term_<'a> {
 }
 
 pub trait TableLike<'a> {
-    type Term: CommandStream<'a, Iterator = Self::Iterator> + Term;
-    type Iterator: Iterator<Item = &'a stream::unify::Command>;
+    type Term: CommandStream<'a, Iterator = Self::Iterator> + Term + std::fmt::Debug;
+    type Iterator: Iterator<Item = &'a stream::unify::Command> + std::fmt::Debug;
 
     fn get_term(&self, idx: u32) -> Option<&Self::Term>;
 
@@ -264,6 +271,7 @@ impl<'a> TableLike<'a> for Table<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct Verifier<'a> {
     state: State,
     table: Table<'a>,

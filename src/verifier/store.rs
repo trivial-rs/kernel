@@ -1,4 +1,4 @@
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct PackedStorePointer(u32);
 
 impl PackedStorePointer {
@@ -55,7 +55,7 @@ impl PackedStorePointer {
     }
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct StorePointer(pub u32);
 
 impl StorePointer {
@@ -80,7 +80,7 @@ impl StorePointer {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Type(pub u64);
 
 impl Type {
@@ -123,6 +123,7 @@ impl Type {
     }
 }
 
+#[derive(Debug)]
 pub enum StoreElement<'a> {
     Var {
         ty: Type,
@@ -140,6 +141,7 @@ pub enum StoreElement<'a> {
     },
 }
 
+#[derive(Debug)]
 pub enum StoreElementRef<'a> {
     Var {
         ty: &'a Type,
@@ -157,6 +159,7 @@ pub enum StoreElementRef<'a> {
     },
 }
 
+#[derive(Debug)]
 pub struct StoreTerm<'a> {
     pub ty: &'a Type,
     pub id: &'a u32,
@@ -178,6 +181,7 @@ impl<'a> TryFrom<StoreElementRef<'a>> for StoreTerm<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct StoreConv {
     pub e1: PackedStorePointer,
     pub e2: PackedStorePointer,
@@ -195,6 +199,7 @@ impl<'a> TryFrom<StoreElementRef<'a>> for StoreConv {
     }
 }
 
+#[derive(Debug)]
 pub struct StoreVar {
     pub ty: Type,
     pub var: u16,
@@ -212,6 +217,7 @@ impl<'a> TryFrom<StoreElementRef<'a>> for StoreVar {
     }
 }
 
+#[derive(Debug)]
 enum InternalStoreElement {
     Var {
         ty: Type,
@@ -229,6 +235,7 @@ enum InternalStoreElement {
     },
 }
 
+#[derive(Debug)]
 pub struct Store {
     data: Vec<InternalStoreElement>,
     args: Vec<PackedStorePointer>,

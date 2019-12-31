@@ -6,7 +6,7 @@ use crate::verifier::stream;
 use crate::verifier::{CommandStream, State, Table, TableLike, Term};
 use crate::TResult;
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Opcode {
     End,
     Ref,
@@ -26,7 +26,7 @@ pub enum Opcode {
     ConvSave,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Command {
     opcode: Opcode,
     data: u32,
@@ -630,6 +630,7 @@ impl Run for State {
     }
 }
 
+#[derive(Debug)]
 pub enum Continue<T> {
     Normal,
     UnifyTheorem { stepper: stream::unify::Stepper<T> },
@@ -638,6 +639,7 @@ pub enum Continue<T> {
     ContinueUnfold,
 }
 
+#[derive(Debug)]
 pub struct Stepper<'a, S, T>
 where
     T: TableLike<'a>,

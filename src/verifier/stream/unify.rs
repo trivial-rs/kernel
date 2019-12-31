@@ -3,14 +3,14 @@ use crate::verifier::store::StoreTerm;
 use crate::verifier::State;
 use crate::TResult;
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Mode {
     Def,
     Thm,
     ThmEnd,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum Opcode {
     End,
     Ref,
@@ -20,7 +20,7 @@ pub enum Opcode {
     Hyp,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Command {
     opcode: Opcode,
     data: u32,
@@ -210,6 +210,7 @@ impl Run for State {
     }
 }
 
+#[derive(Debug)]
 pub struct Stepper<T> {
     started: bool,
     mode: Mode,

@@ -11,7 +11,7 @@ use crate::verifier::Type;
 use crate::verifier::Verifier;
 use crate::TResult;
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Opcode {
     End,
     Sort,
@@ -19,6 +19,7 @@ pub enum Opcode {
     AxiomThm,
 }
 
+#[derive(Debug)]
 pub struct Command {
     opcode: Opcode,
 }
@@ -89,6 +90,7 @@ pub trait Statement {
     fn axiom_thm(&mut self, idx: u32, is_axiom: bool) -> TResult;
 }
 
+#[derive(Debug)]
 pub enum TermDef<'a, S, T>
 where
     S: Iterator,
@@ -389,6 +391,7 @@ impl<'a> Statement for Verifier<'a> {
     }
 }
 
+#[derive(Debug)]
 enum StepState<'a, S, T>
 where
     S: Iterator,
@@ -399,6 +402,7 @@ where
     TermDef(TermDef<'a, S, T>),
 }
 
+#[derive(Debug)]
 pub struct Stepper<'a, S, T>
 where
     S: StatementStream + Iterator,
