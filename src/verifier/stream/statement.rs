@@ -1,7 +1,6 @@
 use crate::error::Kind;
 use crate::verifier::store::StorePointer;
 use crate::verifier::stream;
-use crate::verifier::CommandStream;
 use crate::verifier::State;
 use crate::verifier::StoreElement;
 use crate::verifier::Table;
@@ -10,6 +9,8 @@ use crate::verifier::Term;
 use crate::verifier::Type;
 use crate::verifier::Verifier;
 use crate::TResult;
+
+use core::ops::Range;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Opcode {
@@ -24,14 +25,14 @@ pub struct Command {
     opcode: Opcode,
 }
 
+use crate::opcode;
 use crate::verifier::stream::proof;
 
 pub trait StatementStream: Iterator
 where
     <Self as Iterator>::Item: TryInto<Opcode>,
-    <Self::AsProof as Iterator>::Item: TryInto<proof::Command>,
 {
-    type AsProof: Iterator;
+    type AsProof: Iterator<Item = u32> + std::fmt::Debug;
 
     fn as_proof_stream(&self) -> Self::AsProof;
 }
@@ -46,8 +47,8 @@ fn allocate_var(proof_heap: &mut Heap, store: &mut Store, x: (usize, &Type)) {
     proof_heap.push(ptr);
 }
 
-fn binder_check<'a, T: TableLike<'a>>(table: &'a T, ty: Type, bv: &mut u64) -> TResult {
-    let sort = table.get_sort(ty.get_sort()).ok_or(Kind::InvalidSort)?;
+fn binder_check<T: TableLike>(table: &T, ty: Type, bv: &mut u64) -> TResult {
+    let sort = table.get_sort(ty.get_sort_idx()).ok_or(Kind::InvalidSort)?;
     let deps = ty.get_deps();
 
     if ty.is_bound() {
@@ -91,40 +92,36 @@ pub trait Statement {
 }
 
 #[derive(Debug)]
-pub enum TermDef<'a, S, T>
+pub enum TermDef<S>
 where
-    S: Iterator,
-    S::Item: TryInto<stream::proof::Command>,
-    T: TableLike<'a>,
+    S: Iterator<Item = u32>,
 {
     Start {
         idx: u32,
         stream: S,
     },
     RunProof {
-        stepper: stream::proof::Stepper<'a, S, T>,
+        stepper: stream::proof::Stepper<S>,
         ret_type: Type,
-        term: &'a T::Term,
+        commands: Range<usize>,
     },
     ProofDone {
         ret_type: Type,
-        term: &'a T::Term,
+        commands: Range<usize>,
     },
     RunUnify {
-        stepper: stream::unify::Stepper<T::Iterator>,
+        stepper: stream::unify::Stepper,
     },
     Done,
 }
 
 use std::convert::TryInto;
 
-impl<'a, S, T> TermDef<'a, S, T>
+impl<S> TermDef<S>
 where
-    S: Iterator,
-    S::Item: TryInto<stream::proof::Command>,
-    T: TableLike<'a>,
+    S: Iterator<Item = u32>,
 {
-    pub fn new(idx: u32, stream: S) -> TermDef<'a, S, T> {
+    pub fn new(idx: u32, stream: S) -> TermDef<S> {
         TermDef::Start { idx, stream }
     }
 
@@ -135,21 +132,25 @@ where
         }
     }
 
-    pub fn step(&mut self, state: &mut State, table: &'a T) -> TResult {
+    pub fn step<T: TableLike>(&mut self, state: &mut State, table: &T) -> TResult {
         let old = std::mem::replace(self, Self::Done);
 
         let next = match old {
             TermDef::Start { idx, stream } => {
                 let term = table.get_term(idx).ok_or(Kind::InvalidTerm)?;
-                let sort = table.get_sort(term.get_sort()).ok_or(Kind::InvalidSort)?;
+                let sort = table
+                    .get_sort(term.get_sort_idx())
+                    .ok_or(Kind::InvalidSort)?;
 
                 if sort.is_pure() {
                     return Err(Kind::SortIsPure);
                 }
 
                 let binders = term.get_binders();
+                let binders = table.get_binders(binders).unwrap();
 
                 state.proof_heap.clear();
+                state.proof_stack.clear();
 
                 let mut next_bv = 1;
 
@@ -171,7 +172,7 @@ where
 
                 state.next_bv = next_bv;
 
-                if term.get_sort() != ret_type.get_sort() {
+                if term.get_sort_idx() != ret_type.get_sort_idx() {
                     return Err(Kind::BadReturnType);
                 }
 
@@ -181,28 +182,30 @@ where
                 if !term.is_definition() {
                     TermDef::Done
                 } else {
-                    let stepper = stream::proof::Stepper::new(table, true, stream);
+                    let stepper = stream::proof::Stepper::new(true, stream);
+
+                    let commands = term.get_command_stream();
 
                     TermDef::RunProof {
                         stepper,
                         ret_type,
-                        term,
+                        commands,
                     }
                 }
             }
             TermDef::RunProof {
                 mut stepper,
                 ret_type,
-                term,
-            } => match stepper.step(state) {
-                Some(_) => TermDef::RunProof {
+                commands,
+            } => match stepper.step(state, table) {
+                Some(x) => TermDef::RunProof {
                     stepper,
                     ret_type,
-                    term,
+                    commands,
                 },
-                None => TermDef::ProofDone { ret_type, term },
+                None => TermDef::ProofDone { ret_type, commands },
             },
-            TermDef::ProofDone { ret_type, term } => {
+            TermDef::ProofDone { ret_type, commands } => {
                 if state.proof_stack.len() != 1 {
                     return Err(Kind::StackHasMoreThanOne);
                 }
@@ -229,12 +232,11 @@ where
 
                 state.unify_heap.clone_from(&state.proof_heap);
 
-                let commands = term.get_command_stream();
                 let stepper = stream::unify::Stepper::new(stream::unify::Mode::Def, expr, commands);
 
                 TermDef::RunUnify { stepper }
             }
-            TermDef::RunUnify { mut stepper } => match stepper.step(state) {
+            TermDef::RunUnify { mut stepper } => match stepper.step(state, table) {
                 Some(_) => TermDef::RunUnify { stepper },
                 None => TermDef::Done,
             },
@@ -250,12 +252,12 @@ where
 use crate::verifier::store::Store;
 use crate::verifier::Heap;
 
-impl<'a> Statement for Verifier<'a> {
+impl Statement for Verifier {
     fn term_def(&mut self, idx: u32) -> TResult {
         let term = self.table.get_term(idx).ok_or(Kind::InvalidTerm)?;
         let sort = self
             .table
-            .get_sort(term.get_sort())
+            .get_sort(term.get_sort_idx())
             .ok_or(Kind::InvalidSort)?;
 
         if sort.is_pure() {
@@ -263,6 +265,7 @@ impl<'a> Statement for Verifier<'a> {
         }
 
         let binders = term.get_binders();
+        let binders = self.table.get_binders(binders).unwrap();
 
         self.state.proof_heap.clear();
 
@@ -286,7 +289,7 @@ impl<'a> Statement for Verifier<'a> {
 
         self.state.next_bv = next_bv;
 
-        if term.get_sort() != ret_type.get_sort() {
+        if term.get_sort_idx() != ret_type.get_sort_idx() {
             return Err(Kind::BadReturnType);
         }
 
@@ -327,7 +330,13 @@ impl<'a> Statement for Verifier<'a> {
 
             let commands = term.get_command_stream();
 
-            stream::unify::Run::run(&mut self.state, commands, stream::unify::Mode::Def, expr)?;
+            stream::unify::Run::run(
+                &mut self.state,
+                commands,
+                &self.table,
+                stream::unify::Mode::Def,
+                expr,
+            )?;
         }
 
         Ok(())
@@ -341,6 +350,7 @@ impl<'a> Statement for Verifier<'a> {
         self.state.hyp_stack.clear();
 
         let binders = thm.get_binders();
+        let binders = self.table.get_binders(binders).unwrap();
 
         let mut next_bv = 1;
 
@@ -373,7 +383,7 @@ impl<'a> Statement for Verifier<'a> {
             .store
             .get_type_of_expr(expr)
             .ok_or(Kind::InvalidStoreExpr)?
-            .get_sort();
+            .get_sort_idx();
 
         let sort = self.table.get_sort(sort).ok_or(Kind::InvalidSort)?;
 
@@ -385,50 +395,50 @@ impl<'a> Statement for Verifier<'a> {
 
         let commands = thm.get_unify_commands();
 
-        stream::unify::Run::run(&mut self.state, commands, stream::unify::Mode::ThmEnd, expr)?;
+        stream::unify::Run::run(
+            &mut self.state,
+            commands,
+            &self.table,
+            stream::unify::Mode::ThmEnd,
+            expr,
+        )?;
 
         Ok(())
     }
 }
 
 #[derive(Debug)]
-enum StepState<'a, S, T>
+enum StepState<S>
 where
-    S: Iterator,
-    S::Item: TryInto<stream::proof::Command>,
-    T: TableLike<'a>,
+    S: Iterator<Item = u32>,
 {
     Normal,
-    TermDef(TermDef<'a, S, T>),
+    TermDef(TermDef<S>),
 }
 
 #[derive(Debug)]
-pub struct Stepper<'a, S, T>
+pub struct Stepper<S>
 where
     S: StatementStream + Iterator,
     <S as Iterator>::Item: TryInto<Opcode>,
-    <S::AsProof as Iterator>::Item: TryInto<proof::Command>,
-    T: TableLike<'a>,
 {
     stream: S,
-    state: StepState<'a, S::AsProof, T>,
+    state: StepState<S::AsProof>,
 }
 
-impl<'a, S, T> Stepper<'a, S, T>
+impl<S> Stepper<S>
 where
     S: StatementStream + Iterator,
     <S as Iterator>::Item: TryInto<Opcode>,
-    <S::AsProof as Iterator>::Item: TryInto<proof::Command>,
-    T: TableLike<'a>,
 {
-    pub fn new(stream: S) -> Stepper<'a, S, T> {
+    pub fn new(stream: S) -> Stepper<S> {
         Stepper {
             stream,
             state: StepState::Normal,
         }
     }
 
-    pub fn step(&mut self, state: &mut State, table: &'a T) -> Option<TResult> {
+    pub fn step<T: TableLike>(&mut self, state: &mut State, table: &T) -> Option<TResult> {
         let mut old = std::mem::replace(&mut self.state, StepState::Normal);
 
         match old {
@@ -436,18 +446,20 @@ where
             StepState::TermDef(ref mut td) => {
                 if td.is_done() {
                     std::mem::replace(&mut self.state, StepState::Normal);
+                    state.store.clear();
+                    state.increment_current_term();
                     Some(Ok(()))
                 } else {
+                    println!("{:?}", state);
                     let ret = td.step(state, table);
                     std::mem::replace(&mut self.state, old);
                     Some(ret)
                 }
             }
-            _ => Some(Ok(())),
         }
     }
 
-    fn normal(&mut self, state: &State) -> Option<TResult> {
+    fn normal(&mut self, state: &mut State) -> Option<TResult> {
         if let Some(x) = self.stream.next() {
             let x = x.try_into().ok()?;
 
@@ -459,13 +471,19 @@ where
                     //
                 }
                 Opcode::TermDef => {
-                    let td = TermDef::new(0, self.stream.as_proof_stream());
+                    let td = TermDef::new(state.get_current_term(), self.stream.as_proof_stream());
 
+                    state.store.clear();
+                    state.proof_heap.clear();
+                    state.proof_stack.clear();
+                    state.unify_heap.clear();
+                    state.unify_stack.clear();
+                    println!("start termdef");
                     self.state = StepState::TermDef(td);
                 }
                 Opcode::AxiomThm => {
+                    println!("> skip");
                     self.state = StepState::Normal;
-                    //
                 }
             }
 

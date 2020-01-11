@@ -92,52 +92,58 @@ impl Heap {
     }
 }
 
+use crate::opcode;
+
+use core::ops::Range;
+
 #[derive(Debug)]
-pub struct Theorem<'a> {
-    pub binders: &'a [Type],
-    pub unify_commands: &'a [stream::unify::Command],
+pub struct Theorem {
+    pub binders: Range<usize>,
+    pub unify_commands: Range<usize>,
 }
 
-impl<'a> Theorem<'a> {
+impl Theorem {
     fn get_nr_args(&self) -> u16 {
         self.binders.len() as u16
     }
 
-    fn get_binders(&self) -> &[Type] {
-        self.binders
+    fn get_binders(&self) -> Range<usize> {
+        self.binders.clone()
     }
 
-    fn get_unify_commands(&self) -> &[stream::unify::Command] {
-        self.unify_commands
+    fn get_unify_commands(&self) -> Range<usize> {
+        self.unify_commands.clone()
     }
 }
 
 #[derive(Debug)]
-pub struct Term_<'a> {
+pub struct Term_ {
     pub sort: u8,
-    pub binders: &'a [Type],
+    pub binders: Range<usize>,
     pub ret_type: Type,
-    pub unify_commands: &'a [stream::unify::Command],
+    pub unify_commands: Range<usize>,
 }
 
 pub trait Term {
     fn nr_args(&self) -> u16;
 
-    fn get_sort(&self) -> u8;
+    fn get_sort_idx(&self) -> u8;
 
     fn is_definition(&self) -> bool;
 
-    fn get_binders(&self) -> &[Type];
+    fn get_binders(&self) -> Range<usize>;
 
     fn get_return_type(&self) -> Type;
+
+    fn get_command_stream(&self) -> Range<usize>;
 }
 
-impl<'a> Term for Term_<'a> {
+impl Term for Term_ {
     fn nr_args(&self) -> u16 {
         self.binders.len() as u16
     }
 
-    fn get_sort(&self) -> u8 {
+    fn get_sort_idx(&self) -> u8 {
         self.sort & 0x7F
     }
 
@@ -145,17 +151,27 @@ impl<'a> Term for Term_<'a> {
         (self.sort & 0x80) != 0
     }
 
-    fn get_binders(&self) -> &[Type] {
-        self.binders
+    fn get_binders(&self) -> Range<usize> {
+        self.binders.clone()
     }
 
     fn get_return_type(&self) -> Type {
         self.ret_type
     }
+
+    fn get_command_stream(&self) -> Range<usize> {
+        self.unify_commands.clone()
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct Sort(pub u8);
+
+impl From<u8> for Sort {
+    fn from(value: u8) -> Sort {
+        Sort(value)
+    }
+}
 
 impl Sort {
     fn is_pure(&self) -> bool {
@@ -184,6 +200,7 @@ pub struct State {
     hyp_stack: Stack,
     store: Store,
     next_bv: u64,
+    current_term: u32,
 }
 
 impl State {
@@ -196,23 +213,54 @@ impl State {
             hyp_stack: Stack::new(),
             store: Store::new(),
             next_bv: 0,
+            current_term: 0,
         }
+    }
+
+    pub fn get_proof_stack(&self) -> &Stack {
+        &self.proof_stack
+    }
+
+    pub fn get_proof_heap(&self) -> &Heap {
+        &self.proof_heap
+    }
+
+    pub fn get_unify_stack(&self) -> &Stack {
+        &self.unify_stack
+    }
+
+    pub fn get_unify_heap(&self) -> &Heap {
+        &self.unify_heap
+    }
+
+    pub fn get_current_term(&self) -> u32 {
+        self.current_term
+    }
+
+    pub fn increment_current_term(&mut self) {
+        self.current_term += 1;
     }
 }
 
 #[derive(Debug)]
-pub struct Table<'a> {
-    sorts: Vec<Sort>,
-    theorems: Vec<Theorem<'a>>,
-    terms: Vec<Term_<'a>>,
+pub struct Table {
+    pub sorts: Vec<Sort>,
+    pub theorems: Vec<Theorem>,
+    pub terms: Vec<Term_>,
+    pub proof: Vec<opcode::Command<opcode::Proof>>,
+    pub unify: Vec<opcode::Command<opcode::Unify>>,
+    pub binders: Vec<store::Type>,
 }
 
-impl<'a> Table<'a> {
-    pub fn new() -> Table<'a> {
+impl Table {
+    pub fn new() -> Table {
         Table {
             sorts: Vec::new(),
             theorems: Vec::new(),
             terms: Vec::new(),
+            proof: Vec::new(),
+            unify: Vec::new(),
+            binders: Vec::new(),
         }
     }
 
@@ -220,43 +268,35 @@ impl<'a> Table<'a> {
         self.sorts.push(sort);
     }
 
-    pub fn add_theorem(&mut self, theorem: Theorem<'a>) {
+    pub fn add_theorem(&mut self, theorem: Theorem) {
         self.theorems.push(theorem);
     }
 
-    pub fn add_term(&mut self, term: Term_<'a>) {
+    pub fn add_term(&mut self, term: Term_) {
         self.terms.push(term);
     }
 }
 
-pub trait CommandStream<'a> {
-    type Iterator: Iterator<Item = &'a stream::unify::Command>;
-
-    fn get_command_stream(&self) -> Self::Iterator;
-}
-
-impl<'a> CommandStream<'a> for Term_<'a> {
-    type Iterator = std::slice::Iter<'a, stream::unify::Command>;
-
-    fn get_command_stream(&self) -> Self::Iterator {
-        self.unify_commands.iter()
-    }
-}
-
-pub trait TableLike<'a> {
-    type Term: CommandStream<'a, Iterator = Self::Iterator> + Term + std::fmt::Debug;
-    type Iterator: Iterator<Item = &'a stream::unify::Command> + std::fmt::Debug;
+pub trait TableLike {
+    type Term: Term + std::fmt::Debug;
 
     fn get_term(&self, idx: u32) -> Option<&Self::Term>;
 
     fn get_sort(&self, idx: u8) -> Option<&Sort>;
 
     fn get_theorem(&self, idx: u32) -> Option<&Theorem>;
+
+    fn get_proof_command(&self, idx: u32) -> Option<&opcode::Command<opcode::Proof>>;
+
+    fn get_unify_commands(&self, idx: Range<usize>) -> Option<&[opcode::Command<opcode::Unify>]>;
+
+    fn get_unify_command(&self, idx: usize) -> Option<&opcode::Command<opcode::Unify>>;
+
+    fn get_binders(&self, idx: Range<usize>) -> Option<&[store::Type]>;
 }
 
-impl<'a> TableLike<'a> for Table<'a> {
-    type Term = Term_<'a>;
-    type Iterator = std::slice::Iter<'a, stream::unify::Command>;
+impl TableLike for Table {
+    type Term = Term_;
 
     fn get_term(&self, idx: u32) -> Option<&Self::Term> {
         self.terms.get(idx as usize)
@@ -269,14 +309,30 @@ impl<'a> TableLike<'a> for Table<'a> {
     fn get_theorem(&self, idx: u32) -> Option<&Theorem> {
         self.theorems.get(idx as usize)
     }
+
+    fn get_proof_command(&self, idx: u32) -> Option<&opcode::Command<opcode::Proof>> {
+        self.proof.get(idx as usize)
+    }
+
+    fn get_unify_commands(&self, idx: Range<usize>) -> Option<&[opcode::Command<opcode::Unify>]> {
+        self.unify.get(idx)
+    }
+
+    fn get_unify_command(&self, idx: usize) -> Option<&opcode::Command<opcode::Unify>> {
+        self.unify.get(idx as usize)
+    }
+
+    fn get_binders(&self, idx: Range<usize>) -> Option<&[store::Type]> {
+        self.binders.get(idx)
+    }
 }
 
 #[derive(Debug)]
-pub struct Verifier<'a> {
+pub struct Verifier {
     state: State,
-    table: Table<'a>,
+    table: Table,
 }
 
-impl<'a> Verifier<'a> {
+impl Verifier {
     //
 }

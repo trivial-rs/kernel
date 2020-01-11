@@ -1,3 +1,4 @@
+pub use mmb_types::opcode;
 pub mod error;
 pub mod verifier;
 

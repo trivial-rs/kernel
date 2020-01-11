@@ -83,12 +83,18 @@ impl StorePointer {
 #[derive(Debug, Copy, Clone)]
 pub struct Type(pub u64);
 
+impl From<u64> for Type {
+    fn from(value: u64) -> Type {
+        Type(value)
+    }
+}
+
 impl Type {
-    pub fn new(sort: u8, deps: u64, bound: bool) -> Type {
+    pub fn new(sort_idx: u8, deps: u64, bound: bool) -> Type {
         if bound {
-            Type((((sort & 0x7F) as u64) << 56) | deps)
+            Type((((sort_idx & 0x7F) as u64) << 56) | deps | (1 << 63))
         } else {
-            Type((((sort & 0x7F) as u64) << 56) | deps | (1 << 63))
+            Type((((sort_idx & 0x7F) as u64) << 56) | deps)
         }
     }
 
@@ -108,7 +114,7 @@ impl Type {
         self.0 & ((1u64 << 56) - 1)
     }
 
-    pub fn get_sort(&self) -> u8 {
+    pub fn get_sort_idx(&self) -> u8 {
         ((self.0 >> 56) & 0x7F) as u8
     }
 

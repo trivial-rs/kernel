@@ -10,27 +10,7 @@ pub enum Mode {
     ThmEnd,
 }
 
-#[derive(Debug, Copy, Clone)]
-pub enum Opcode {
-    End,
-    Ref,
-    Term,
-    TermSave,
-    Dummy,
-    Hyp,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct Command {
-    opcode: Opcode,
-    data: u32,
-}
-
-impl From<&Command> for Command {
-    fn from(c: &Command) -> Command {
-        *c
-    }
-}
+use crate::opcode;
 
 pub trait Unify {
     fn end(&mut self, mode: Mode) -> TResult;
@@ -45,18 +25,18 @@ pub trait Unify {
 
     fn hyp_thm_end(&mut self) -> TResult;
 
-    fn execute(&mut self, command: Command, mode: Mode) -> TResult<bool> {
-        use Opcode::*;
+    fn execute(&mut self, command: opcode::Command<opcode::Unify>, mode: Mode) -> TResult<bool> {
+        use crate::opcode::Unify::*;
         match command.opcode {
             End => {
                 self.end(mode)?;
                 return Ok(true);
             }
-            Ref => self.reference(command.data),
-            Term => self.term(command.data, false),
-            TermSave => self.term(command.data, true),
+            Ref => self.reference(command.operand),
+            Term => self.term(command.operand, false),
+            TermSave => self.term(command.operand, true),
             Dummy => match mode {
-                Mode::Def => self.dummy(command.data),
+                Mode::Def => self.dummy(command.operand),
                 _ => Err(Kind::DummyCommandInTheorem),
             },
             Hyp => match mode {
@@ -128,7 +108,7 @@ impl Unify for State {
         let var: StoreVar = self.store.get(e)?;
         let ty = var.ty;
 
-        if !(ty.is_bound() && ty.get_sort() == (sort as u8)) {
+        if !(ty.is_bound() && ty.get_sort_idx() == (sort as u8)) {
             return Err(Kind::UnifyTermFailure);
         }
 
@@ -180,25 +160,39 @@ impl Unify for State {
 }
 
 use crate::verifier::store::StorePointer;
+use crate::verifier::TableLike;
+use core::ops::Range;
 use std::convert::TryInto;
 
 pub trait Run {
-    fn run<T>(&mut self, stream: T, mode: Mode, target: StorePointer) -> TResult
+    fn run<T>(
+        &mut self,
+        stream: Range<usize>,
+        table: &T,
+        mode: Mode,
+        target: StorePointer,
+    ) -> TResult
     where
-        T: IntoIterator,
-        T::Item: TryInto<Command>;
+        T: TableLike;
 }
 
 impl Run for State {
-    fn run<T>(&mut self, stream: T, mode: Mode, target: StorePointer) -> TResult
+    fn run<T>(
+        &mut self,
+        stream: Range<usize>,
+        table: &T,
+        mode: Mode,
+        target: StorePointer,
+    ) -> TResult
     where
-        T: IntoIterator,
-        T::Item: TryInto<Command>,
+        T: TableLike,
     {
         self.unify_stack.clear();
         self.unify_stack.push(target.to_expr());
 
-        for i in stream {
+        let commands = table.get_unify_commands(stream).unwrap();
+
+        for i in commands {
             let command = i.try_into().map_err(|_| Kind::UnknownCommand)?;
 
             if self.execute(command, mode)? {
@@ -211,19 +205,15 @@ impl Run for State {
 }
 
 #[derive(Debug)]
-pub struct Stepper<T> {
+pub struct Stepper {
     started: bool,
     mode: Mode,
     target: StorePointer,
-    stream: T,
+    stream: Range<usize>,
 }
 
-impl<T> Stepper<T>
-where
-    T: Iterator,
-    T::Item: TryInto<Command>,
-{
-    pub fn new(mode: Mode, target: StorePointer, stream: T) -> Stepper<T> {
+impl Stepper {
+    pub fn new(mode: Mode, target: StorePointer, stream: Range<usize>) -> Stepper {
         Stepper {
             started: false,
             mode,
@@ -232,7 +222,7 @@ where
         }
     }
 
-    pub fn step(&mut self, state: &mut State) -> Option<TResult> {
+    pub fn step<T: TableLike>(&mut self, state: &mut State, table: &T) -> Option<TResult> {
         if !self.started {
             state.unify_stack.clear();
             state.unify_stack.push(self.target.to_expr());
@@ -243,7 +233,9 @@ where
 
             match el {
                 Some(i) => {
-                    let command = i.try_into().map_err(|_| Kind::UnknownCommand);
+                    let el = table.get_unify_command(i).unwrap();
+
+                    let command = el.try_into().map_err(|_| Kind::UnknownCommand);
 
                     match command {
                         Ok(command) => {
@@ -261,5 +253,3 @@ where
         }
     }
 }
-
-pub type SliceStepper<'a> = Stepper<std::slice::Iter<'a, Command>>;
