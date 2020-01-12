@@ -258,7 +258,7 @@ where
                         .get_type_of_expr(i)
                         .ok_or(Kind::InvalidStoreExpr)?;
 
-                    if d.depends_on_full(&deps) {
+                    if d.depends_on_full(deps) {
                         return Err(Kind::DisjointVariableViolation);
                     }
                 }
@@ -345,7 +345,7 @@ where
                         .get_type_of_expr(i)
                         .ok_or(Kind::InvalidStoreExpr)?;
 
-                    if d.depends_on_full(&deps) {
+                    if d.depends_on_full(deps) {
                         return Err(Kind::DisjointVariableViolation);
                     }
                 }
@@ -640,7 +640,7 @@ where
     }
 
     fn conv_ref(&mut self, idx: u32) -> TResult {
-        use crate::verifier::store::{StoreConv, StorePointer};
+        use crate::verifier::store::StoreConv;
 
         let x: StoreConv = self.store.get(StorePointer(idx))?;
 

@@ -9,16 +9,12 @@ use store::StoreElement;
 pub use store::Type;
 pub use stream::Stepper;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Stack {
     data: Vec<PackedStorePointer>,
 }
 
 impl Stack {
-    fn new() -> Stack {
-        Stack { data: Vec::new() }
-    }
-
     fn to_display<'a>(&'a self, store: &'a Store) -> DisplayStack<'a> {
         DisplayStack(self, store)
     }
@@ -63,8 +59,8 @@ impl<'a> Display for DisplayStack<'a> {
             let ptr = i.to_ptr();
 
             match self.1.get_element(ptr) {
-                Some(el) => write!(f, "> {} {}\n", i, el.to_display(self.1))?,
-                None => write!(f, "> Invalid ptr\n")?,
+                Some(el) => writeln!(f, "> {} {}", i, el.to_display(self.1))?,
+                None => writeln!(f, "> Invalid ptr")?,
             }
         }
 
@@ -72,26 +68,18 @@ impl<'a> Display for DisplayStack<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Heap {
     data: Vec<PackedStorePointer>,
 }
 
 impl Heap {
-    fn new() -> Heap {
-        Heap { data: Vec::new() }
-    }
-
     fn clear(&mut self) {
         self.data.clear();
     }
 
     fn push(&mut self, idx: PackedStorePointer) {
         self.data.push(idx);
-    }
-
-    fn pop(&mut self) {
-        self.data.pop();
     }
 
     fn len(&self) -> usize {
@@ -197,24 +185,28 @@ impl From<u8> for Sort {
 }
 
 impl Sort {
-    fn is_pure(&self) -> bool {
+    #[inline(always)]
+    fn is_pure(self) -> bool {
         (self.0 & 0x01) != 0
     }
 
-    fn is_strict(&self) -> bool {
+    #[inline(always)]
+    fn is_strict(self) -> bool {
         (self.0 & 0x02) != 0
     }
 
-    fn is_provable(&self) -> bool {
+    #[inline(always)]
+    fn is_provable(self) -> bool {
         (self.0 & 0x04) != 0
     }
 
-    fn is_free(&self) -> bool {
+    #[inline(always)]
+    fn is_free(self) -> bool {
         (self.0 & 0x08) != 0
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct State {
     proof_stack: Stack,
     proof_heap: Heap,
@@ -227,31 +219,19 @@ pub struct State {
     current_theorem: u32,
 }
 
-impl State {
-    pub fn new() -> State {
-        State {
-            proof_stack: Stack::new(),
-            proof_heap: Heap::new(),
-            unify_stack: Stack::new(),
-            unify_heap: Heap::new(),
-            hyp_stack: Stack::new(),
-            store: Store::new(),
-            next_bv: 0,
-            current_term: 0,
-            current_theorem: 0,
-        }
-    }
-
-    pub fn print(&self) {
-        println!("===print:");
+impl Display for State {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        writeln!(f, "=== display:")?;
         let display = self.proof_stack.to_display(&self.store);
-        println!(" Stack:\n{}", display);
+        writeln!(f, " Stack:\n{}", display)?;
         let display = self.unify_stack.to_display(&self.store);
-        println!(" UStack:\n{}", display);
+        writeln!(f, " UStack:\n{}", display)?;
         let display = self.hyp_stack.to_display(&self.store);
-        println!(" HStack:\n{}", display);
+        writeln!(f, " HStack:\n{}", display)
     }
+}
 
+impl State {
     pub fn get_proof_stack(&self) -> &Stack {
         &self.proof_stack
     }
@@ -285,7 +265,7 @@ impl State {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Table {
     pub sorts: Vec<Sort>,
     pub theorems: Vec<Theorem>,
@@ -296,17 +276,6 @@ pub struct Table {
 }
 
 impl Table {
-    pub fn new() -> Table {
-        Table {
-            sorts: Vec::new(),
-            theorems: Vec::new(),
-            terms: Vec::new(),
-            proof: Vec::new(),
-            unify: Vec::new(),
-            binders: Vec::new(),
-        }
-    }
-
     pub fn add_sort(&mut self, sort: Sort) {
         self.sorts.push(sort);
     }
@@ -368,14 +337,4 @@ impl TableLike for Table {
     fn get_binders(&self, idx: Range<usize>) -> Option<&[store::Type]> {
         self.binders.get(idx)
     }
-}
-
-#[derive(Debug)]
-pub struct Verifier {
-    state: State,
-    table: Table,
-}
-
-impl Verifier {
-    //
 }

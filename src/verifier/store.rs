@@ -50,7 +50,7 @@ impl PackedStorePointer {
         }
     }
 
-    pub fn to_ptr(&self) -> StorePointer {
+    pub fn to_ptr(self) -> StorePointer {
         StorePointer((self.0 & 0xFC) >> 2)
     }
 
@@ -85,23 +85,28 @@ impl Display for PackedStorePointer {
 pub struct StorePointer(pub u32);
 
 impl StorePointer {
-    pub fn to_proof(&self) -> PackedStorePointer {
+    #[inline(always)]
+    pub fn to_proof(self) -> PackedStorePointer {
         PackedStorePointer::proof(self.0)
     }
 
-    pub fn to_expr(&self) -> PackedStorePointer {
+    #[inline(always)]
+    pub fn to_expr(self) -> PackedStorePointer {
         PackedStorePointer::expr(self.0)
     }
 
-    pub fn to_co_conv(&self) -> PackedStorePointer {
+    #[inline(always)]
+    pub fn to_co_conv(self) -> PackedStorePointer {
         PackedStorePointer::co_conv(self.0)
     }
 
-    pub fn to_conv(&self) -> PackedStorePointer {
+    #[inline(always)]
+    pub fn to_conv(self) -> PackedStorePointer {
         PackedStorePointer::conv(self.0)
     }
 
-    pub fn get_idx(&self) -> usize {
+    #[inline(always)]
+    pub fn get_idx(self) -> usize {
         self.0 as usize
     }
 }
@@ -110,12 +115,14 @@ impl StorePointer {
 pub struct Type(pub u64);
 
 impl From<u64> for Type {
+    #[inline(always)]
     fn from(value: u64) -> Type {
         Type(value)
     }
 }
 
 impl Type {
+    #[inline(always)]
     pub fn new(sort_idx: u8, deps: u64, bound: bool) -> Type {
         if bound {
             Type((((sort_idx & 0x7F) as u64) << 56) | deps | (1 << 63))
@@ -124,27 +131,33 @@ impl Type {
         }
     }
 
-    pub fn is_bound(&self) -> bool {
+    #[inline(always)]
+    pub fn is_bound(self) -> bool {
         self.0 & (1u64 << 63) != 0
     }
 
-    pub fn depends_on(&self, t: u8) -> bool {
+    #[inline(always)]
+    pub fn depends_on(self, t: u8) -> bool {
         self.0 & (1u64 << t) != 0
     }
 
-    pub fn depends_on_full(&self, other: &u64) -> bool {
+    #[inline(always)]
+    pub fn depends_on_full(self, other: u64) -> bool {
         (self.0 & other) != 0
     }
 
-    pub fn get_deps(&self) -> u64 {
+    #[inline(always)]
+    pub fn get_deps(self) -> u64 {
         self.0 & ((1u64 << 56) - 1)
     }
 
-    pub fn get_sort_idx(&self) -> u8 {
+    #[inline(always)]
+    pub fn get_sort_idx(self) -> u8 {
         ((self.0 >> 56) & 0x7F) as u8
     }
 
-    pub fn is_compatible_to(&self, other: &Self) -> bool {
+    #[inline(always)]
+    pub fn is_compatible_to(self, other: Self) -> bool {
         let diff = self.0 ^ other.0;
 
         let a = diff & !((1u64 << 56) - 1);
@@ -202,11 +215,11 @@ pub struct DisplayElement<'a, 'b>(pub &'b StoreElementRef<'a>, pub &'b Store);
 impl<'a, 'b> Display for DisplayElement<'a, 'b> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self.0 {
-            StoreElementRef::Var { ty, var } => {
+            StoreElementRef::Var { var, .. } => {
                 write!(f, "v{}", var)
                 //
             }
-            StoreElementRef::Term { ty, id, args } => {
+            StoreElementRef::Term { id, args, .. } => {
                 write!(f, "t{} (", id)?;
 
                 for i in *args {
@@ -302,7 +315,7 @@ enum InternalStoreElement {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Store {
     data: Vec<InternalStoreElement>,
     args: Vec<PackedStorePointer>,
@@ -312,13 +325,6 @@ use crate::error::Kind;
 use crate::error::TResult;
 
 impl Store {
-    pub fn new() -> Store {
-        Store {
-            data: Vec::new(),
-            args: Vec::new(),
-        }
-    }
-
     pub fn create_term(
         &mut self,
         id: u32,
@@ -338,7 +344,7 @@ impl Store {
 
             let ty = self.get_type_of_expr(arg).ok_or(Kind::InvalidStoreExpr)?;
 
-            if !ty.is_compatible_to(&target_type) {
+            if !ty.is_compatible_to(target_type) {
                 return Err(Kind::IncompatibleTypes);
             }
 

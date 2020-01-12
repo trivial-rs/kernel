@@ -1,7 +1,11 @@
 use crate::error::Kind;
+use crate::verifier::store::StorePointer;
 use crate::verifier::store::StoreTerm;
 use crate::verifier::State;
+use crate::verifier::TableLike;
 use crate::TResult;
+use core::ops::Range;
+use std::convert::TryInto;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Mode {
@@ -52,10 +56,8 @@ pub trait Unify {
 
 impl Unify for State {
     fn end(&mut self, mode: Mode) -> TResult {
-        if mode == Mode::ThmEnd {
-            if self.hyp_stack.len() != 0 {
-                return Err(Kind::UnfinishedHypStack);
-            }
+        if mode == Mode::ThmEnd && self.hyp_stack.len() != 0 {
+            return Err(Kind::UnfinishedHypStack);
         }
 
         if self.unify_stack.len() != 0 {
@@ -123,7 +125,7 @@ impl Unify for State {
                 .get_type_of_expr(i)
                 .ok_or(Kind::InvalidStoreExpr)?;
 
-            if d.depends_on_full(&deps) {
+            if d.depends_on_full(deps) {
                 return Err(Kind::DisjointVariableViolation);
             }
         }
@@ -158,11 +160,6 @@ impl Unify for State {
         Ok(())
     }
 }
-
-use crate::verifier::store::StorePointer;
-use crate::verifier::TableLike;
-use core::ops::Range;
-use std::convert::TryInto;
 
 pub trait Run {
     fn run<T>(

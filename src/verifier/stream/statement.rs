@@ -1,13 +1,12 @@
 use crate::error::Kind;
-use crate::verifier::store::StorePointer;
+use crate::verifier::store::Store;
 use crate::verifier::stream;
+use crate::verifier::Heap;
 use crate::verifier::State;
 use crate::verifier::StoreElement;
-use crate::verifier::Table;
 use crate::verifier::TableLike;
 use crate::verifier::Term;
 use crate::verifier::Type;
-use crate::verifier::Verifier;
 use crate::TResult;
 
 use core::ops::Range;
@@ -20,14 +19,6 @@ pub enum Opcode {
     Axiom,
     Thm,
 }
-
-#[derive(Debug)]
-pub struct Command {
-    opcode: Opcode,
-}
-
-use crate::opcode;
-use crate::verifier::stream::proof;
 
 pub trait StatementStream: Iterator
 where
@@ -62,26 +53,9 @@ fn binder_check<T: TableLike>(table: &T, ty: Type, bv: &mut u64) -> TResult {
         }
 
         *bv *= 2;
-    } else {
-        if deps & !(*bv - 1) != 0 {
-            return Err(Kind::BindDep);
-        }
+    } else if (deps & !(*bv - 1)) != 0 {
+        return Err(Kind::BindDep);
     }
-
-    Ok(())
-}
-
-fn load_args(state: &mut State, table: &Table, binders: &[Type]) -> TResult {
-    state.proof_heap.clear();
-
-    let mut next_bv = 1;
-
-    for (i, ty) in binders.iter().enumerate() {
-        binder_check(table, *ty, &mut next_bv)?;
-        allocate_var(&mut state.proof_heap, &mut state.store, (i, ty));
-    }
-
-    state.next_bv = next_bv;
 
     Ok(())
 }
@@ -171,11 +145,13 @@ where
 
                 binder_check(table, ret_type, &mut next_bv)?;
 
+                /*
                 allocate_var(
                     &mut state.proof_heap,
                     &mut state.store,
                     (binders.len(), &ret_type),
                 );
+                */
 
                 state.next_bv = next_bv;
 
@@ -183,8 +159,9 @@ where
                     return Err(Kind::BadReturnType);
                 }
 
-                // todo: check if allocation of return var is necessary
-                state.proof_heap.pop();
+                // TODO: check if allocation of return var is necessary
+                // apparently not..?
+                //state.proof_heap.pop();
 
                 if !term.is_definition() {
                     TermDef::Done
@@ -205,11 +182,14 @@ where
                 ret_type,
                 commands,
             } => match stepper.step(state, table) {
-                Some(x) => TermDef::RunProof {
+                Some(Ok(())) => TermDef::RunProof {
                     stepper,
                     ret_type,
                     commands,
                 },
+                Some(Err(x)) => {
+                    return Err(x);
+                }
                 None => TermDef::ProofDone { ret_type, commands },
             },
             TermDef::ProofDone { ret_type, commands } => {
@@ -229,7 +209,7 @@ where
                     .get_type_of_expr(expr)
                     .ok_or(Kind::InvalidStoreType)?;
 
-                if !ty.is_compatible_to(&ret_type) {
+                if !ty.is_compatible_to(ret_type) {
                     return Err(Kind::TypeError);
                 }
 
@@ -244,7 +224,10 @@ where
                 TermDef::RunUnify { stepper }
             }
             TermDef::RunUnify { mut stepper } => match stepper.step(state, table) {
-                Some(_) => TermDef::RunUnify { stepper },
+                Some(Ok(())) => TermDef::RunUnify { stepper },
+                Some(Err(x)) => {
+                    return Err(x);
+                }
                 None => TermDef::Done,
             },
             TermDef::Done => TermDef::Done,
@@ -347,11 +330,14 @@ where
                 commands,
                 is_axiom,
             } => match stepper.step(state, table) {
-                Some(x) => AxiomThm::RunProof {
+                Some(Ok(())) => AxiomThm::RunProof {
                     stepper,
                     commands,
                     is_axiom,
                 },
+                Some(Err(x)) => {
+                    return Err(x);
+                }
                 None => AxiomThm::ProofDone { commands, is_axiom },
             },
             AxiomThm::ProofDone { commands, is_axiom } => {
@@ -389,177 +375,16 @@ where
                 AxiomThm::RunUnify { stepper }
             }
             AxiomThm::RunUnify { mut stepper } => match stepper.step(state, table) {
-                Some(_) => AxiomThm::RunUnify { stepper },
+                Some(Ok(())) => AxiomThm::RunUnify { stepper },
+                Some(Err(x)) => {
+                    return Err(x);
+                }
                 None => AxiomThm::Done,
             },
             AxiomThm::Done => AxiomThm::Done,
         };
 
         std::mem::replace(self, next);
-
-        Ok(())
-    }
-}
-
-use crate::verifier::store::Store;
-use crate::verifier::Heap;
-
-impl Statement for Verifier {
-    fn term_def(&mut self, idx: u32) -> TResult {
-        let term = self.table.get_term(idx).ok_or(Kind::InvalidTerm)?;
-        let sort = self
-            .table
-            .get_sort(term.get_sort_idx())
-            .ok_or(Kind::InvalidSort)?;
-
-        if sort.is_pure() {
-            return Err(Kind::SortIsPure);
-        }
-
-        let binders = term.get_binders();
-        let binders = self
-            .table
-            .get_binders(binders)
-            .ok_or(Kind::InvalidBinderIndices)?;
-
-        self.state.proof_heap.clear();
-
-        let mut next_bv = 1;
-
-        for (i, ty) in binders.iter().enumerate() {
-            binder_check(&self.table, *ty, &mut next_bv)?;
-
-            allocate_var(&mut self.state.proof_heap, &mut self.state.store, (i, ty));
-        }
-
-        let ret_type = term.get_return_type();
-
-        binder_check(&self.table, ret_type, &mut next_bv)?;
-
-        allocate_var(
-            &mut self.state.proof_heap,
-            &mut self.state.store,
-            (binders.len(), &ret_type),
-        );
-
-        self.state.next_bv = next_bv;
-
-        if term.get_sort_idx() != ret_type.get_sort_idx() {
-            return Err(Kind::BadReturnType);
-        }
-
-        // todo: check if allocation of return var is necessary
-        self.state.proof_heap.pop();
-
-        if term.is_definition() {
-            let commands = &[];
-            stream::proof::Run::run(&mut self.state, &self.table, true, commands)?;
-
-            if self.state.proof_stack.len() != 1 {
-                return Err(Kind::StackHasMoreThanOne);
-            }
-
-            let expr = self
-                .state
-                .proof_stack
-                .pop()
-                .ok_or(Kind::Impossible)?
-                .as_expr()
-                .ok_or(Kind::InvalidStoreExpr)?;
-
-            let ty = self
-                .state
-                .store
-                .get_type_of_expr(expr)
-                .ok_or(Kind::InvalidStoreType)?;
-
-            if !ty.is_compatible_to(&ret_type) {
-                return Err(Kind::TypeError);
-            }
-
-            if ty.get_deps() != ret_type.get_deps() {
-                return Err(Kind::UnaccountedDependencies);
-            }
-
-            self.state.unify_heap.clone_from(&self.state.proof_heap);
-
-            let commands = term.get_command_stream();
-
-            stream::unify::Run::run(
-                &mut self.state,
-                commands,
-                &self.table,
-                stream::unify::Mode::Def,
-                expr,
-            )?;
-        }
-
-        Ok(())
-    }
-
-    fn axiom_thm(&mut self, idx: u32, is_axiom: bool) -> TResult {
-        let thm = self.table.get_theorem(idx).ok_or(Kind::InvalidTheorem)?;
-
-        self.state.store.clear();
-        self.state.proof_stack.clear();
-        self.state.hyp_stack.clear();
-
-        let binders = thm.get_binders();
-        let binders = self
-            .table
-            .get_binders(binders)
-            .ok_or(Kind::InvalidBinderIndices)?;
-
-        let mut next_bv = 1;
-
-        for (i, ty) in binders.iter().enumerate() {
-            binder_check(&self.table, *ty, &mut next_bv)?;
-            allocate_var(&mut self.state.proof_heap, &mut self.state.store, (i, ty));
-        }
-
-        self.state.next_bv = next_bv;
-
-        let commands = &[];
-        stream::proof::Run::run(&mut self.state, &self.table, false, commands)?;
-
-        if self.state.proof_stack.len() != 1 {
-            return Err(Kind::StackHasMoreThanOne);
-        }
-
-        let expr = self.state.proof_stack.pop().ok_or(Kind::Impossible)?;
-
-        let expr = if is_axiom {
-            expr.as_expr()
-        } else {
-            expr.as_proof()
-        };
-
-        let expr = expr.ok_or(Kind::InvalidStackType)?;
-
-        let sort = self
-            .state
-            .store
-            .get_type_of_expr(expr)
-            .ok_or(Kind::InvalidStoreExpr)?
-            .get_sort_idx();
-
-        let sort = self.table.get_sort(sort).ok_or(Kind::InvalidSort)?;
-
-        if !sort.is_provable() {
-            return Err(Kind::SortNotProvable);
-        }
-
-        self.state.unify_heap.clone_from(&self.state.proof_heap);
-
-        let commands = thm.get_unify_commands();
-
-        stream::unify::Run::run(
-            &mut self.state,
-            commands,
-            &self.table,
-            stream::unify::Mode::ThmEnd,
-            expr,
-        )?;
 
         Ok(())
     }
@@ -608,7 +433,6 @@ where
                     state.increment_current_term();
                     Some(Ok(()))
                 } else {
-                    //println!("{:?}", state);
                     let ret = td.step(state, table);
                     std::mem::replace(&mut self.state, old);
                     Some(ret)
@@ -620,7 +444,6 @@ where
                     state.increment_current_theorem();
                     Some(Ok(()))
                 } else {
-                    //println!("{:?}", state);
                     let ret = at.step(state, table);
                     std::mem::replace(&mut self.state, old);
                     Some(ret)
