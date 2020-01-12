@@ -9,6 +9,11 @@ use crate::TResult;
 use crate::opcode;
 use crate::verifier::store::StorePointer;
 
+pub enum FinalizeState {
+    Theorem(StorePointer, bool),
+    Unfold(StorePointer, StorePointer),
+}
+
 pub trait Proof<'a, T>
 where
     T: TableLike,
@@ -23,6 +28,15 @@ where
 
     fn theorem(&mut self, table: &T, idx: u32, save: bool) -> TResult;
 
+    fn theorem_start(
+        &mut self,
+        table: &T,
+        idx: u32,
+        save: bool,
+    ) -> TResult<(stream::unify::Stepper, FinalizeState)>;
+
+    fn theorem_end(&mut self, target: StorePointer, save: bool) -> TResult;
+
     fn hyp(&mut self, table: &T) -> TResult;
 
     fn conv(&mut self) -> TResult;
@@ -33,7 +47,7 @@ where
 
     fn cong(&mut self) -> TResult;
 
-    fn unfold_start(&mut self, table: &'a T) -> TResult<stream::unify::Stepper>;
+    fn unfold_start(&mut self, table: &'a T) -> TResult<(stream::unify::Stepper, FinalizeState)>;
 
     fn unfold_end(&mut self, t_ptr: StorePointer, e: StorePointer) -> TResult;
 
@@ -85,7 +99,7 @@ where
         table: &'a T,
         command: opcode::Command<opcode::Proof>,
         is_definition: bool,
-    ) -> TResult<Option<stream::unify::Stepper>> {
+    ) -> TResult<Option<(stream::unify::Stepper, FinalizeState)>> {
         use crate::opcode::Proof::*;
         match (command.opcode, is_definition) {
             (End, _) => {
@@ -96,8 +110,14 @@ where
             (Dummy, _) => self.dummy(table, command.operand),
             (Term, _) => self.term(table, command.operand, false, is_definition),
             (TermSave, _) => self.term(table, command.operand, true, is_definition),
-            (Thm, false) => self.theorem(table, command.operand, false),
-            (ThmSave, false) => self.theorem(table, command.operand, true),
+            (Thm, false) => {
+                let a = self.theorem_start(table, command.operand, false)?;
+                return Ok(Some(a));
+            }
+            (ThmSave, false) => {
+                let a = self.theorem_start(table, command.operand, true)?;
+                return Ok(Some(a));
+            }
             (Thm, true) => Err(Kind::InvalidOpcodeInDef),
             (ThmSave, true) => Err(Kind::InvalidOpcodeInDef),
             (Hyp, false) => self.hyp(table),
@@ -170,7 +190,9 @@ where
         let last = self.proof_stack.get_last(term.nr_args())?;
 
         let binders = term.get_binders();
-        let binders = table.get_binders(binders).unwrap();
+        let binders = table
+            .get_binders(binders)
+            .ok_or(Kind::InvalidBinderIndices)?;
 
         let ptr = self.store.create_term(
             idx,
@@ -203,7 +225,7 @@ where
         let last = self.proof_stack.get_last(thm.get_nr_args())?;
 
         let types = thm.get_binders();
-        let types = table.get_binders(types).unwrap();
+        let types = table.get_binders(types).ok_or(Kind::InvalidBinderIndices)?;
 
         self.unify_heap.clear();
 
@@ -247,7 +269,7 @@ where
                     .iter()
                     .enumerate()
                 {
-                    if !target_type.depends_on(i as u8) || ((j & deps) == 0) {
+                    if !(target_type.depends_on(i as u8) || ((j & deps) == 0)) {
                         return Err(Kind::DisjointVariableViolation);
                     }
                 }
@@ -263,6 +285,97 @@ where
 
         stream::unify::Run::run(self, commands, table, stream::unify::Mode::Thm, target)?;
 
+        let proof = target.to_proof();
+
+        self.proof_stack.push(proof);
+
+        if save {
+            self.proof_heap.push(proof);
+        }
+
+        Ok(())
+    }
+
+    fn theorem_start(
+        &mut self,
+        table: &T,
+        idx: u32,
+        save: bool,
+    ) -> TResult<(stream::unify::Stepper, FinalizeState)> {
+        let thm = table.get_theorem(idx).ok_or(Kind::InvalidTheorem)?;
+        let target = self
+            .proof_stack
+            .pop()
+            .ok_or(Kind::ProofStackUnderflow)?
+            .as_expr()
+            .ok_or(Kind::InvalidStoreExpr)?;
+        let last = self.proof_stack.get_last(thm.get_nr_args())?;
+
+        let types = thm.get_binders();
+        let types = table.get_binders(types).ok_or(Kind::InvalidBinderIndices)?;
+
+        self.unify_heap.clear();
+
+        let mut g_deps = [0; 256];
+        let mut bound: u8 = 0;
+        let mut i = 0;
+
+        for (&arg, &target_type) in last.iter().zip(types.iter()) {
+            let arg = arg.as_expr().ok_or(Kind::InvalidStoreExpr)?;
+
+            let ty = self
+                .store
+                .get_type_of_expr(arg)
+                .ok_or(Kind::InvalidStoreExpr)?;
+
+            let deps = ty.get_deps();
+
+            if target_type.is_bound() {
+                *g_deps
+                    .get_mut(bound as usize)
+                    .ok_or(Kind::DependencyOverflow)? = deps;
+
+                bound += 1;
+
+                for &i in last.get(..i).ok_or(Kind::DependencyOverflow)? {
+                    let i = i.as_expr().ok_or(Kind::InvalidStoreExpr)?;
+
+                    let d = self
+                        .store
+                        .get_type_of_expr(i)
+                        .ok_or(Kind::InvalidStoreExpr)?;
+
+                    if d.depends_on_full(&deps) {
+                        return Err(Kind::DisjointVariableViolation);
+                    }
+                }
+            } else {
+                for (i, &j) in g_deps
+                    .get(..(bound as usize))
+                    .ok_or(Kind::DependencyOverflow)?
+                    .iter()
+                    .enumerate()
+                {
+                    if !(target_type.depends_on(i as u8) || ((j & deps) == 0)) {
+                        return Err(Kind::DisjointVariableViolation);
+                    }
+                }
+            }
+
+            i += 1;
+        }
+
+        self.unify_heap.extend(last);
+        self.proof_stack.truncate_last(thm.get_nr_args());
+
+        let commands = thm.get_unify_commands();
+
+        let stepper = stream::unify::Stepper::new(stream::unify::Mode::Thm, target, commands);
+
+        Ok((stepper, FinalizeState::Theorem(target, save)))
+    }
+
+    fn theorem_end(&mut self, target: StorePointer, save: bool) -> TResult {
         let proof = target.to_proof();
 
         self.proof_stack.push(proof);
@@ -390,7 +503,7 @@ where
         Ok(())
     }
 
-    fn unfold_start(&mut self, table: &'a T) -> TResult<stream::unify::Stepper> {
+    fn unfold_start(&mut self, table: &'a T) -> TResult<(stream::unify::Stepper, FinalizeState)> {
         let e = self
             .proof_stack
             .pop()
@@ -418,11 +531,9 @@ where
 
         let commands = term.get_command_stream();
 
-        //stream::unify::Run::run(self, commands, stream::unify::Mode::Def, e)?;
-
         let stepper = stream::unify::Stepper::new(stream::unify::Mode::Def, e, commands);
 
-        Ok(stepper)
+        Ok((stepper, FinalizeState::Unfold(t_ptr, e)))
     }
 
     fn unfold_end(&mut self, t_ptr: StorePointer, e: StorePointer) -> TResult {
@@ -611,10 +722,24 @@ impl Run for State {
 #[derive(Debug)]
 pub enum Continue {
     Normal,
-    UnifyTheorem { stepper: stream::unify::Stepper },
-    ContinueTheorem,
-    UnifyUnfold { stepper: stream::unify::Stepper },
-    ContinueUnfold,
+    UnifyTheorem {
+        stepper: stream::unify::Stepper,
+        target: StorePointer,
+        save: bool,
+    },
+    ContinueTheorem {
+        target: StorePointer,
+        save: bool,
+    },
+    UnifyUnfold {
+        stepper: stream::unify::Stepper,
+        t_ptr: StorePointer,
+        e: StorePointer,
+    },
+    ContinueUnfold {
+        t_ptr: StorePointer,
+        e: StorePointer,
+    },
 }
 
 #[derive(Debug)]
@@ -641,25 +766,34 @@ where
         let (next, ret) = match &mut self.con {
             Continue::Normal => {
                 if let Some(el) = self.stream.next() {
-                    println!("cmnd: {}", el);
+                    //println!("cmnd: {}", el);
                     let el = table.get_proof_command(el);
 
-                    println!("Proof step: {:?}", el);
+                    //println!("Proof step: {:?}", el);
 
                     let (next_state, ret) = match el {
                         Some(i) => {
                             let command = i.try_into().ok()?;
-                            println!("{:?}", command);
+                            //println!("{:?}", command);
 
                             let k = match state.step(table, command, self.is_definition) {
                                 Ok(x) => {
                                     let next_state = match x {
-                                        Some(x) => {
-                                            if command.opcode == crate::opcode::Proof::Thm {
-                                                Continue::UnifyTheorem { stepper: x }
-                                            } else {
-                                                Continue::UnifyUnfold { stepper: x }
+                                        Some((x, FinalizeState::Theorem(a, b))) => {
+                                            Continue::UnifyTheorem {
+                                                stepper: x,
+                                                target: a,
+                                                save: b,
                                             }
+                                            //
+                                        }
+                                        Some((x, FinalizeState::Unfold(a, b))) => {
+                                            Continue::UnifyUnfold {
+                                                stepper: x,
+                                                t_ptr: a,
+                                                e: b,
+                                            }
+                                            //
                                         }
                                         None => Continue::Normal,
                                     };
@@ -667,7 +801,6 @@ where
                                     Some(next_state)
                                 }
                                 Err(x) => {
-                                    panic!("{:?}", x);
                                     return Some(Err(x));
                                 }
                             };
@@ -682,23 +815,50 @@ where
                     (None, None)
                 }
             }
-            Continue::UnifyUnfold { ref mut stepper } => {
+            Continue::UnifyUnfold {
+                ref mut stepper,
+                ref t_ptr,
+                ref e,
+            } => {
                 let (next_state, ret) = match stepper.step(state, table) {
                     Some(x) => (None, Some(x)),
-                    None => (Some(Continue::ContinueUnfold), None),
+                    None => (
+                        Some(Continue::ContinueUnfold {
+                            t_ptr: *t_ptr,
+                            e: *e,
+                        }),
+                        None,
+                    ),
                 };
 
                 (next_state, ret)
             }
-            Continue::ContinueUnfold => (Some(Continue::Normal), Some(Ok(()))),
-            Continue::UnifyTheorem { ref mut stepper } => {
+            Continue::ContinueUnfold { t_ptr, e } => {
+                let a = Proof::<T>::unfold_end(state, *t_ptr, *e);
+
+                (Some(Continue::Normal), Some(a))
+            }
+            Continue::UnifyTheorem {
+                ref mut stepper,
+                ref target,
+                ref save,
+            } => {
                 let (next_state, ret) = match stepper.step(state, table) {
                     Some(x) => (None, Some(x)),
-                    None => (Some(Continue::ContinueTheorem), None),
+                    None => (
+                        Some(Continue::ContinueTheorem {
+                            target: *target,
+                            save: *save,
+                        }),
+                        None,
+                    ),
                 };
                 (next_state, ret)
             }
-            Continue::ContinueTheorem => (Some(Continue::Normal), Some(Ok(()))),
+            Continue::ContinueTheorem { target, save } => {
+                let a = Proof::<T>::theorem_end(state, *target, *save);
+                (Some(Continue::Normal), Some(a))
+            }
         };
 
         if let Some(x) = next {

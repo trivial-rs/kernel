@@ -53,6 +53,32 @@ impl PackedStorePointer {
     pub fn to_ptr(&self) -> StorePointer {
         StorePointer((self.0 & 0xFC) >> 2)
     }
+
+    pub fn to_display<'a>(&self, store: &'a Store) -> DisplayPackedStorePointer<'a> {
+        DisplayPackedStorePointer(*self, store)
+    }
+}
+
+use std::fmt::{self, Display, Formatter};
+
+pub struct DisplayPackedStorePointer<'a>(PackedStorePointer, &'a Store);
+
+impl<'a> Display for DisplayPackedStorePointer<'a> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}", self.0.to_ptr().0)
+    }
+}
+
+impl Display for PackedStorePointer {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self.0 & 0x03 {
+            0x00 => write!(f, "expr"),
+            0x01 => write!(f, "proof"),
+            0x02 => write!(f, "conv"),
+            0x03 => write!(f, "co-conv"),
+            _ => Ok(()),
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -163,6 +189,41 @@ pub enum StoreElementRef<'a> {
         e1: &'a PackedStorePointer,
         e2: &'a PackedStorePointer,
     },
+}
+
+impl<'a> StoreElementRef<'a> {
+    pub fn to_display<'b>(&'b self, store: &'b Store) -> DisplayElement<'a, 'b> {
+        DisplayElement(self, store)
+    }
+}
+
+pub struct DisplayElement<'a, 'b>(pub &'b StoreElementRef<'a>, pub &'b Store);
+
+impl<'a, 'b> Display for DisplayElement<'a, 'b> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self.0 {
+            StoreElementRef::Var { ty, var } => {
+                write!(f, "v{}", var)
+                //
+            }
+            StoreElementRef::Term { ty, id, args } => {
+                write!(f, "t{} (", id)?;
+
+                for i in *args {
+                    match self.1.get_element(i.to_ptr()) {
+                        Some(el) => write!(f, "{} ", el.to_display(self.1))?,
+                        None => write!(f, "invalid_ptr")?,
+                    }
+                }
+
+                write!(f, ")")
+            }
+            StoreElementRef::Conv { e1, e2 } => {
+                write!(f, "conv: {:?} {:?}", e1, e2)
+                //
+            }
+        }
+    }
 }
 
 #[derive(Debug)]

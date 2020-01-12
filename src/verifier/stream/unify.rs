@@ -190,7 +190,9 @@ impl Run for State {
         self.unify_stack.clear();
         self.unify_stack.push(target.to_expr());
 
-        let commands = table.get_unify_commands(stream).unwrap();
+        let commands = table
+            .get_unify_commands(stream)
+            .ok_or(Kind::InvalidUnifyCommandIndex)?;
 
         for i in commands {
             let command = i.try_into().map_err(|_| Kind::UnknownCommand)?;
@@ -233,7 +235,10 @@ impl Stepper {
 
             match el {
                 Some(i) => {
-                    let el = table.get_unify_command(i).unwrap();
+                    let el = table
+                        .get_unify_command(i)
+                        .ok_or(Kind::InvalidUnifyCommandIndex)
+                        .ok()?;
 
                     let command = el.try_into().map_err(|_| Kind::UnknownCommand);
 

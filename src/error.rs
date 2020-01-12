@@ -7,6 +7,8 @@ pub enum Kind {
     InvalidTerm,
     InvalidStoreExpr,
     InvalidSort,
+    InvalidBinderIndices,
+    InvalidUnifyCommandIndex,
     InvalidStackType,
     IncompatibleTypes,
     DependencyOverflow,

@@ -19,6 +19,10 @@ impl Stack {
         Stack { data: Vec::new() }
     }
 
+    fn to_display<'a>(&'a self, store: &'a Store) -> DisplayStack<'a> {
+        DisplayStack(self, store)
+    }
+
     fn push(&mut self, idx: PackedStorePointer) {
         self.data.push(idx);
     }
@@ -46,6 +50,25 @@ impl Stack {
     fn truncate_last(&mut self, nr: u16) {
         let len = self.data.len();
         self.data.truncate(len - nr as usize);
+    }
+}
+
+use std::fmt::{self, Display, Formatter};
+
+pub struct DisplayStack<'a>(&'a Stack, &'a Store);
+
+impl<'a> Display for DisplayStack<'a> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        for i in self.0.data.iter().rev() {
+            let ptr = i.to_ptr();
+
+            match self.1.get_element(ptr) {
+                Some(el) => write!(f, "> {} {}\n", i, el.to_display(self.1))?,
+                None => write!(f, "> Invalid ptr\n")?,
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -201,6 +224,7 @@ pub struct State {
     store: Store,
     next_bv: u64,
     current_term: u32,
+    current_theorem: u32,
 }
 
 impl State {
@@ -214,7 +238,18 @@ impl State {
             store: Store::new(),
             next_bv: 0,
             current_term: 0,
+            current_theorem: 0,
         }
+    }
+
+    pub fn print(&self) {
+        println!("===print:");
+        let display = self.proof_stack.to_display(&self.store);
+        println!(" Stack:\n{}", display);
+        let display = self.unify_stack.to_display(&self.store);
+        println!(" UStack:\n{}", display);
+        let display = self.hyp_stack.to_display(&self.store);
+        println!(" HStack:\n{}", display);
     }
 
     pub fn get_proof_stack(&self) -> &Stack {
@@ -239,6 +274,14 @@ impl State {
 
     pub fn increment_current_term(&mut self) {
         self.current_term += 1;
+    }
+
+    pub fn get_current_theorem(&self) -> u32 {
+        self.current_theorem
+    }
+
+    pub fn increment_current_theorem(&mut self) {
+        self.current_theorem += 1;
     }
 }
 

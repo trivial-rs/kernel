@@ -17,7 +17,8 @@ pub enum Opcode {
     End,
     Sort,
     TermDef,
-    AxiomThm,
+    Axiom,
+    Thm,
 }
 
 #[derive(Debug)]
@@ -147,10 +148,16 @@ where
                 }
 
                 let binders = term.get_binders();
-                let binders = table.get_binders(binders).unwrap();
+                let binders = table
+                    .get_binders(binders)
+                    .ok_or(Kind::InvalidBinderIndices)?;
 
-                state.proof_heap.clear();
+                state.store.clear();
                 state.proof_stack.clear();
+                state.proof_heap.clear();
+                state.unify_stack.clear();
+                state.unify_heap.clear();
+                state.hyp_stack.clear();
 
                 let mut next_bv = 1;
 
@@ -249,6 +256,151 @@ where
     }
 }
 
+#[derive(Debug)]
+pub enum AxiomThm<S>
+where
+    S: Iterator<Item = u32>,
+{
+    Start {
+        idx: u32,
+        is_axiom: bool,
+        stream: S,
+    },
+    RunProof {
+        stepper: stream::proof::Stepper<S>,
+        is_axiom: bool,
+        commands: Range<usize>,
+    },
+    ProofDone {
+        is_axiom: bool,
+        commands: Range<usize>,
+    },
+    RunUnify {
+        stepper: stream::unify::Stepper,
+    },
+    Done,
+}
+
+impl<S> AxiomThm<S>
+where
+    S: Iterator<Item = u32>,
+{
+    pub fn new(idx: u32, stream: S, is_axiom: bool) -> AxiomThm<S> {
+        AxiomThm::Start {
+            idx,
+            stream,
+            is_axiom,
+        }
+    }
+
+    pub fn is_done(&self) -> bool {
+        match self {
+            AxiomThm::Done => true,
+            _ => false,
+        }
+    }
+
+    pub fn step<T: TableLike>(&mut self, state: &mut State, table: &T) -> TResult {
+        let old = std::mem::replace(self, Self::Done);
+
+        let next = match old {
+            AxiomThm::Start {
+                idx,
+                stream,
+                is_axiom,
+            } => {
+                let thm = table.get_theorem(idx).ok_or(Kind::InvalidTheorem)?;
+
+                state.store.clear();
+                state.proof_stack.clear();
+                state.proof_heap.clear();
+                state.unify_stack.clear();
+                state.unify_heap.clear();
+                state.hyp_stack.clear();
+
+                let binders = thm.get_binders();
+                let binders = table
+                    .get_binders(binders)
+                    .ok_or(Kind::InvalidBinderIndices)?;
+
+                let mut next_bv = 1;
+
+                for (i, ty) in binders.iter().enumerate() {
+                    binder_check(table, *ty, &mut next_bv)?;
+                    allocate_var(&mut state.proof_heap, &mut state.store, (i, ty));
+                }
+
+                state.next_bv = next_bv;
+
+                let stepper = stream::proof::Stepper::new(false, stream);
+
+                let commands = thm.get_unify_commands();
+
+                AxiomThm::RunProof {
+                    stepper,
+                    commands,
+                    is_axiom,
+                }
+            }
+            AxiomThm::RunProof {
+                mut stepper,
+                commands,
+                is_axiom,
+            } => match stepper.step(state, table) {
+                Some(x) => AxiomThm::RunProof {
+                    stepper,
+                    commands,
+                    is_axiom,
+                },
+                None => AxiomThm::ProofDone { commands, is_axiom },
+            },
+            AxiomThm::ProofDone { commands, is_axiom } => {
+                if state.proof_stack.len() != 1 {
+                    return Err(Kind::StackHasMoreThanOne);
+                }
+
+                let expr = state.proof_stack.pop().ok_or(Kind::Impossible)?;
+
+                let expr = if is_axiom {
+                    expr.as_expr()
+                } else {
+                    expr.as_proof()
+                };
+
+                let expr = expr.ok_or(Kind::InvalidStackType)?;
+
+                let sort = state
+                    .store
+                    .get_type_of_expr(expr)
+                    .ok_or(Kind::InvalidStoreExpr)?
+                    .get_sort_idx();
+
+                let sort = table.get_sort(sort).ok_or(Kind::InvalidSort)?;
+
+                if !sort.is_provable() {
+                    return Err(Kind::SortNotProvable);
+                }
+
+                state.unify_heap.clone_from(&state.proof_heap);
+
+                let stepper =
+                    stream::unify::Stepper::new(stream::unify::Mode::ThmEnd, expr, commands);
+
+                AxiomThm::RunUnify { stepper }
+            }
+            AxiomThm::RunUnify { mut stepper } => match stepper.step(state, table) {
+                Some(_) => AxiomThm::RunUnify { stepper },
+                None => AxiomThm::Done,
+            },
+            AxiomThm::Done => AxiomThm::Done,
+        };
+
+        std::mem::replace(self, next);
+
+        Ok(())
+    }
+}
+
 use crate::verifier::store::Store;
 use crate::verifier::Heap;
 
@@ -265,7 +417,10 @@ impl Statement for Verifier {
         }
 
         let binders = term.get_binders();
-        let binders = self.table.get_binders(binders).unwrap();
+        let binders = self
+            .table
+            .get_binders(binders)
+            .ok_or(Kind::InvalidBinderIndices)?;
 
         self.state.proof_heap.clear();
 
@@ -350,7 +505,10 @@ impl Statement for Verifier {
         self.state.hyp_stack.clear();
 
         let binders = thm.get_binders();
-        let binders = self.table.get_binders(binders).unwrap();
+        let binders = self
+            .table
+            .get_binders(binders)
+            .ok_or(Kind::InvalidBinderIndices)?;
 
         let mut next_bv = 1;
 
@@ -414,6 +572,7 @@ where
 {
     Normal,
     TermDef(TermDef<S>),
+    AxiomThm(AxiomThm<S>),
 }
 
 #[derive(Debug)]
@@ -446,12 +605,23 @@ where
             StepState::TermDef(ref mut td) => {
                 if td.is_done() {
                     std::mem::replace(&mut self.state, StepState::Normal);
-                    state.store.clear();
                     state.increment_current_term();
                     Some(Ok(()))
                 } else {
-                    println!("{:?}", state);
+                    //println!("{:?}", state);
                     let ret = td.step(state, table);
+                    std::mem::replace(&mut self.state, old);
+                    Some(ret)
+                }
+            }
+            StepState::AxiomThm(ref mut at) => {
+                if at.is_done() {
+                    std::mem::replace(&mut self.state, StepState::Normal);
+                    state.increment_current_theorem();
+                    Some(Ok(()))
+                } else {
+                    //println!("{:?}", state);
+                    let ret = at.step(state, table);
                     std::mem::replace(&mut self.state, old);
                     Some(ret)
                 }
@@ -473,17 +643,23 @@ where
                 Opcode::TermDef => {
                     let td = TermDef::new(state.get_current_term(), self.stream.as_proof_stream());
 
-                    state.store.clear();
-                    state.proof_heap.clear();
-                    state.proof_stack.clear();
-                    state.unify_heap.clear();
-                    state.unify_stack.clear();
-                    println!("start termdef");
                     self.state = StepState::TermDef(td);
                 }
-                Opcode::AxiomThm => {
-                    println!("> skip");
-                    self.state = StepState::Normal;
+                Opcode::Axiom => {
+                    let at = AxiomThm::new(
+                        state.get_current_theorem(),
+                        self.stream.as_proof_stream(),
+                        true,
+                    );
+                    self.state = StepState::AxiomThm(at);
+                }
+                Opcode::Thm => {
+                    let at = AxiomThm::new(
+                        state.get_current_theorem(),
+                        self.stream.as_proof_stream(),
+                        false,
+                    );
+                    self.state = StepState::AxiomThm(at);
                 }
             }
 
