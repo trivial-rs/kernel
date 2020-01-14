@@ -827,7 +827,7 @@ where
                             t_ptr: *t_ptr,
                             e: *e,
                         }),
-                        None,
+                        Some(Ok(())),
                     ),
                 };
 
@@ -850,7 +850,7 @@ where
                             target: *target,
                             save: *save,
                         }),
-                        None,
+                        Some(Ok(())),
                     ),
                 };
                 (next_state, ret)

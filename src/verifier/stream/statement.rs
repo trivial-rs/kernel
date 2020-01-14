@@ -145,23 +145,11 @@ where
 
                 binder_check(table, ret_type, &mut next_bv)?;
 
-                /*
-                allocate_var(
-                    &mut state.proof_heap,
-                    &mut state.store,
-                    (binders.len(), &ret_type),
-                );
-                */
-
                 state.next_bv = next_bv;
 
                 if term.get_sort_idx() != ret_type.get_sort_idx() {
                     return Err(Kind::BadReturnType);
                 }
-
-                // TODO: check if allocation of return var is necessary
-                // apparently not..?
-                //state.proof_heap.pop();
 
                 if !term.is_definition() {
                     TermDef::Done

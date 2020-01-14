@@ -51,7 +51,7 @@ impl PackedStorePointer {
     }
 
     pub fn to_ptr(self) -> StorePointer {
-        StorePointer((self.0 & 0xFC) >> 2)
+        StorePointer(self.0 >> 2)
     }
 
     pub fn to_display<'a>(&self, store: &'a Store) -> DisplayPackedStorePointer<'a> {
@@ -231,10 +231,7 @@ impl<'a, 'b> Display for DisplayElement<'a, 'b> {
 
                 write!(f, ")")
             }
-            StoreElementRef::Conv { e1, e2 } => {
-                write!(f, "conv: {:?} {:?}", e1, e2)
-                //
-            }
+            StoreElementRef::Conv { e1, e2 } => write!(f, "conv: {:?} {:?}", e1, e2),
         }
     }
 }
