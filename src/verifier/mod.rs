@@ -107,8 +107,9 @@ impl Heap {
         self.data.len()
     }
 
-    fn clone_from(&mut self, other: &Heap) {
-        self.data.clone_from(&other.data);
+    fn clone_from(&mut self, other: &[PackedStorePointer]) {
+        self.data.clear();
+        self.data.extend_from_slice(other);
     }
 
     fn get(&self, idx: u32) -> Option<PackedStorePointer> {

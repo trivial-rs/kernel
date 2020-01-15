@@ -211,6 +211,12 @@ pub struct Stepper {
     stream: Range<usize>,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub enum Action {
+    Started,
+    Cmd(usize, opcode::Command<opcode::Unify>),
+}
+
 impl Stepper {
     pub fn new(mode: Mode, target: StorePointer, stream: Range<usize>) -> Stepper {
         Stepper {
@@ -221,36 +227,35 @@ impl Stepper {
         }
     }
 
-    pub fn step<T: TableLike>(&mut self, state: &mut State, table: &T) -> Option<TResult> {
+    pub fn step<T: TableLike>(&mut self, state: &mut State, table: &T) -> TResult<Option<Action>> {
         if !self.started {
             state.unify_stack.clear();
             state.unify_stack.push(self.target.to_expr());
             self.started = true;
-            Some(Ok(()))
+            Ok(Some(Action::Started))
         } else {
-            let el = self.stream.next();
+            let current_idx = self.stream.next();
 
-            match el {
-                Some(i) => {
+            match current_idx {
+                Some(idx) => {
                     let el = table
-                        .get_unify_command(i)
-                        .ok_or(Kind::InvalidUnifyCommandIndex)
-                        .ok()?;
+                        .get_unify_command(idx)
+                        .ok_or(Kind::InvalidUnifyCommandIndex)?;
 
                     let command = el.try_into().map_err(|_| Kind::UnknownCommand);
 
                     match command {
                         Ok(command) => {
-                            if state.execute(command, self.mode).ok()? {
-                                None
+                            if state.execute(command, self.mode)? {
+                                Ok(None)
                             } else {
-                                Some(Ok(()))
+                                Ok(Some(Action::Cmd(idx, command)))
                             }
                         }
-                        Err(_) => Some(Err(Kind::UnknownCommand)),
+                        Err(_) => Err(Kind::UnknownCommand),
                     }
                 }
-                None => None,
+                None => Ok(None),
             }
         }
     }

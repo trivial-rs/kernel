@@ -231,9 +231,8 @@ where
 
         let mut g_deps = [0; 256];
         let mut bound: u8 = 0;
-        let mut i = 0;
 
-        for (&arg, &target_type) in last.iter().zip(types.iter()) {
+        for (i, (&arg, &target_type)) in last.iter().zip(types.iter()).enumerate() {
             let arg = arg.as_expr().ok_or(Kind::InvalidStoreExpr)?;
 
             let ty = self
@@ -274,8 +273,6 @@ where
                     }
                 }
             }
-
-            i += 1;
         }
 
         self.unify_heap.extend(last);
@@ -318,9 +315,8 @@ where
 
         let mut g_deps = [0; 256];
         let mut bound: u8 = 0;
-        let mut i = 0;
 
-        for (&arg, &target_type) in last.iter().zip(types.iter()) {
+        for (i, (&arg, &target_type)) in last.iter().zip(types.iter()).enumerate() {
             let arg = arg.as_expr().ok_or(Kind::InvalidStoreExpr)?;
 
             let ty = self
@@ -361,8 +357,6 @@ where
                     }
                 }
             }
-
-            i += 1;
         }
 
         self.unify_heap.extend(last);
@@ -750,6 +744,15 @@ pub struct Stepper<S> {
     con: Continue,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub enum Action {
+    Unify(stream::unify::Action),
+    UnifyDone,
+    UnfoldDone,
+    TheoremDone,
+    Cmd(usize, opcode::Command<opcode::Proof>),
+}
+
 impl<S> Stepper<S>
 where
     S: Iterator<Item = u32>,
@@ -762,106 +765,75 @@ where
         }
     }
 
-    pub fn step<T: TableLike>(&mut self, state: &mut State, table: &T) -> Option<TResult> {
-        let (next, ret) = match &mut self.con {
+    pub fn step<T: TableLike>(&mut self, state: &mut State, table: &T) -> TResult<Option<Action>> {
+        let (next_state, ret) = match &mut self.con {
             Continue::Normal => {
-                if let Some(el) = self.stream.next() {
-                    //println!("cmnd: {}", el);
-                    let el = table.get_proof_command(el);
+                if let Some(current_idx) = self.stream.next() {
+                    let command = table
+                        .get_proof_command(current_idx)
+                        .ok_or(Kind::InvalidProofIndex)?;
 
-                    //println!("Proof step: {:?}", el);
-
-                    let (next_state, ret) = match el {
-                        Some(i) => {
-                            let command = i.try_into().ok()?;
-                            //println!("{:?}", command);
-
-                            let k = match state.step(table, command, self.is_definition) {
-                                Ok(x) => {
-                                    let next_state = match x {
-                                        Some((x, FinalizeState::Theorem(a, b))) => {
-                                            Continue::UnifyTheorem {
-                                                stepper: x,
-                                                target: a,
-                                                save: b,
-                                            }
-                                            //
-                                        }
-                                        Some((x, FinalizeState::Unfold(a, b))) => {
-                                            Continue::UnifyUnfold {
-                                                stepper: x,
-                                                t_ptr: a,
-                                                e: b,
-                                            }
-                                            //
-                                        }
-                                        None => Continue::Normal,
-                                    };
-
-                                    Some(next_state)
-                                }
-                                Err(x) => {
-                                    return Some(Err(x));
-                                }
-                            };
-
-                            (k, Some(Ok(())))
-                        }
-                        None => (None, None),
+                    let next_state = match state.step(table, *command, self.is_definition)? {
+                        Some((x, FinalizeState::Theorem(a, b))) => Continue::UnifyTheorem {
+                            stepper: x,
+                            target: a,
+                            save: b,
+                        },
+                        Some((x, FinalizeState::Unfold(a, b))) => Continue::UnifyUnfold {
+                            stepper: x,
+                            t_ptr: a,
+                            e: b,
+                        },
+                        None => Continue::Normal,
                     };
 
-                    (next_state, ret)
+                    (
+                        Some(next_state),
+                        Ok(Some(Action::Cmd(current_idx as usize, *command))),
+                    )
                 } else {
-                    (None, None)
+                    (None, Ok(None))
                 }
             }
             Continue::UnifyUnfold {
                 ref mut stepper,
                 ref t_ptr,
                 ref e,
-            } => {
-                let (next_state, ret) = match stepper.step(state, table) {
-                    Some(x) => (None, Some(x)),
-                    None => (
-                        Some(Continue::ContinueUnfold {
-                            t_ptr: *t_ptr,
-                            e: *e,
-                        }),
-                        Some(Ok(())),
-                    ),
-                };
-
-                (next_state, ret)
-            }
+            } => match stepper.step(state, table)? {
+                Some(x) => (None, Ok(Some(Action::Unify(x)))),
+                None => (
+                    Some(Continue::ContinueUnfold {
+                        t_ptr: *t_ptr,
+                        e: *e,
+                    }),
+                    Ok(Some(Action::UnifyDone)),
+                ),
+            },
             Continue::ContinueUnfold { t_ptr, e } => {
-                let a = Proof::<T>::unfold_end(state, *t_ptr, *e);
-
-                (Some(Continue::Normal), Some(a))
+                Proof::<T>::unfold_end(state, *t_ptr, *e)?;
+                (Some(Continue::Normal), Ok(Some(Action::UnfoldDone)))
             }
             Continue::UnifyTheorem {
                 ref mut stepper,
                 ref target,
                 ref save,
-            } => {
-                let (next_state, ret) = match stepper.step(state, table) {
-                    Some(x) => (None, Some(x)),
-                    None => (
-                        Some(Continue::ContinueTheorem {
-                            target: *target,
-                            save: *save,
-                        }),
-                        Some(Ok(())),
-                    ),
-                };
-                (next_state, ret)
-            }
+            } => match stepper.step(state, table)? {
+                Some(x) => (None, Ok(Some(Action::Unify(x)))),
+                None => (
+                    Some(Continue::ContinueTheorem {
+                        target: *target,
+                        save: *save,
+                    }),
+                    Ok(Some(Action::UnifyDone)),
+                ),
+            },
             Continue::ContinueTheorem { target, save } => {
-                let a = Proof::<T>::theorem_end(state, *target, *save);
-                (Some(Continue::Normal), Some(a))
+                Proof::<T>::theorem_end(state, *target, *save)?;
+                (Some(Continue::Normal), Ok(Some(Action::TheoremDone)))
             }
         };
 
-        if let Some(x) = next {
+        if let Some(x) = next_state {
             self.con = x;
         }
 

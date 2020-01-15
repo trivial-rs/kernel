@@ -143,7 +143,7 @@ impl Type {
 
     #[inline(always)]
     pub fn depends_on_full(self, other: u64) -> bool {
-        (self.0 & other) != 0
+        (self.get_deps() & other) != 0
     }
 
     #[inline(always)]
