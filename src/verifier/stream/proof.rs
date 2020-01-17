@@ -3,7 +3,7 @@ use crate::verifier::store::StoreElement;
 use crate::verifier::store::StoreTerm;
 use crate::verifier::store::Type;
 use crate::verifier::stream;
-use crate::verifier::{State, Table, TableLike, Term};
+use crate::verifier::{State, TableLike, Term};
 use crate::TResult;
 
 use crate::opcode;
@@ -689,17 +689,17 @@ where
 use std::convert::TryInto;
 
 pub trait Run {
-    fn run<T>(&mut self, table: &Table, is_definition: bool, stream: T) -> TResult
+    fn run<T: TableLike, S>(&mut self, table: &T, is_definition: bool, stream: S) -> TResult
     where
-        T: IntoIterator,
-        T::Item: TryInto<opcode::Command<opcode::Proof>>;
+        S: IntoIterator,
+        S::Item: TryInto<opcode::Command<opcode::Proof>>;
 }
 
 impl Run for State {
-    fn run<T>(&mut self, table: &Table, is_definition: bool, stream: T) -> TResult
+    fn run<T: TableLike, S>(&mut self, table: &T, is_definition: bool, stream: S) -> TResult
     where
-        T: IntoIterator,
-        T::Item: TryInto<opcode::Command<opcode::Proof>>,
+        S: IntoIterator,
+        S::Item: TryInto<opcode::Command<opcode::Proof>>,
     {
         for i in stream {
             let command = i.try_into().map_err(|_| Kind::UnknownCommand)?;

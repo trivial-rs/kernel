@@ -316,7 +316,7 @@ impl Table {
 }
 
 pub trait TableLike {
-    type Term: Term + std::fmt::Debug;
+    type Term: Term;
 
     fn get_term(&self, idx: u32) -> Option<&Self::Term>;
 
