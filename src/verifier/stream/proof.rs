@@ -741,6 +741,7 @@ pub struct Stepper<S> {
     // we can't own &mut State, because of ownership issues
     is_definition: bool,
     stream: S,
+    idx: usize,
     con: Continue,
 }
 
@@ -755,25 +756,29 @@ pub enum Action {
 
 impl<S> Stepper<S>
 where
-    S: Iterator<Item = usize>,
+    S: Iterator<Item = opcode::Command<opcode::Proof>>,
 {
     pub fn new(is_definition: bool, stream: S) -> Stepper<S> {
         Stepper {
             is_definition,
             stream,
+            idx: 0,
             con: Continue::Normal,
         }
+    }
+
+    pub fn take_stream(self) -> S {
+        self.stream
     }
 
     pub fn step<T: TableLike>(&mut self, state: &mut State, table: &T) -> TResult<Option<Action>> {
         let (next_state, ret) = match &mut self.con {
             Continue::Normal => {
-                if let Some(current_idx) = self.stream.next() {
-                    let command = table
-                        .get_proof_command(current_idx)
-                        .ok_or(Kind::InvalidProofIndex)?;
+                if let Some(command) = self.stream.next() {
+                    let idx = self.idx;
+                    self.idx += 1;
 
-                    let next_state = match state.step(table, *command, self.is_definition)? {
+                    let next_state = match state.step(table, command, self.is_definition)? {
                         Some((x, FinalizeState::Theorem(a, b))) => Continue::UnifyTheorem {
                             stepper: x,
                             target: a,
@@ -787,10 +792,7 @@ where
                         None => Continue::Normal,
                     };
 
-                    (
-                        Some(next_state),
-                        Ok(Some(Action::Cmd(current_idx as usize, *command))),
-                    )
+                    (Some(next_state), Ok(Some(Action::Cmd(idx, command))))
                 } else {
                     (None, Ok(None))
                 }

@@ -296,7 +296,6 @@ pub struct Table {
     pub sorts: Vec<Sort>,
     pub theorems: Vec<Theorem>,
     pub terms: Vec<Term_>,
-    pub proof: Vec<opcode::Command<opcode::Proof>>,
     pub unify: Vec<opcode::Command<opcode::Unify>>,
     pub binders: Vec<store::Type>,
 }
@@ -324,8 +323,6 @@ pub trait TableLike {
 
     fn get_theorem(&self, idx: u32) -> Option<&Theorem>;
 
-    fn get_proof_command(&self, idx: usize) -> Option<&opcode::Command<opcode::Proof>>;
-
     fn get_unify_commands(&self, idx: Range<usize>) -> Option<&[opcode::Command<opcode::Unify>]>;
 
     fn get_unify_command(&self, idx: usize) -> Option<&opcode::Command<opcode::Unify>>;
@@ -346,10 +343,6 @@ impl TableLike for Table {
 
     fn get_theorem(&self, idx: u32) -> Option<&Theorem> {
         self.theorems.get(idx as usize)
-    }
-
-    fn get_proof_command(&self, idx: usize) -> Option<&opcode::Command<opcode::Proof>> {
-        self.proof.get(idx)
     }
 
     fn get_unify_commands(&self, idx: Range<usize>) -> Option<&[opcode::Command<opcode::Unify>]> {

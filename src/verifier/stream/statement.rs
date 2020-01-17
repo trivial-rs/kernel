@@ -20,13 +20,17 @@ pub enum Opcode {
     Thm,
 }
 
+use crate::opcode;
+
 pub trait StatementStream: Iterator
 where
     <Self as Iterator>::Item: TryInto<Opcode>,
 {
-    type AsProof: Iterator<Item = usize>;
+    type ProofStream: Iterator<Item = opcode::Command<opcode::Proof>>;
 
-    fn as_proof_stream(&self) -> Self::AsProof;
+    fn take_proof_stream(&mut self) -> Self::ProofStream;
+
+    fn put_proof_stream(&mut self, proofs: Self::ProofStream);
 }
 
 fn allocate_var(proof_heap: &mut Heap, store: &mut Store, x: (usize, &Type)) {
@@ -67,10 +71,7 @@ pub trait Statement {
 }
 
 #[derive(Debug)]
-pub enum TermDef<S>
-where
-    S: Iterator<Item = usize>,
-{
+pub enum TermDef<S> {
     Start {
         idx: u32,
         stream: S,
@@ -82,14 +83,19 @@ where
         commands: Range<usize>,
     },
     ProofDone {
+        stream: S,
         ret_type: Type,
         commands: Range<usize>,
         nr_args: usize,
     },
     RunUnify {
+        stream: S,
         stepper: stream::unify::Stepper,
     },
-    Done,
+    Done {
+        stream: S,
+    },
+    Dummy,
 }
 
 use std::convert::TryInto;
@@ -107,21 +113,28 @@ pub enum TermDefAction {
 
 impl<S> TermDef<S>
 where
-    S: Iterator<Item = usize>,
+    S: Iterator<Item = opcode::Command<opcode::Proof>>,
 {
     pub fn new(idx: u32, stream: S) -> TermDef<S> {
         TermDef::Start { idx, stream }
     }
 
+    pub fn take_stream_if_done(self) -> Option<S> {
+        match self {
+            TermDef::Done { stream } => Some(stream),
+            _ => None,
+        }
+    }
+
     pub fn is_done(&self) -> bool {
         match self {
-            TermDef::Done => true,
+            TermDef::Done { .. } => true,
             _ => false,
         }
     }
 
     pub fn step<T: TableLike>(&mut self, state: &mut State, table: &T) -> TResult<TermDefAction> {
-        let old = std::mem::replace(self, Self::Done);
+        let old = std::mem::replace(self, Self::Dummy);
 
         let (next_state, ret_val) = match old {
             TermDef::Start { idx, stream } => {
@@ -165,7 +178,7 @@ where
                 }
 
                 if !term.is_definition() {
-                    (TermDef::Done, TermDefAction::Done)
+                    (TermDef::Done { stream }, TermDefAction::Done)
                 } else {
                     let stepper = stream::proof::Stepper::new(true, stream);
 
@@ -202,6 +215,7 @@ where
                 }
                 None => (
                     TermDef::ProofDone {
+                        stream: stepper.take_stream(),
                         ret_type,
                         commands,
                         nr_args,
@@ -210,6 +224,7 @@ where
                 ),
             },
             TermDef::ProofDone {
+                stream,
                 ret_type,
                 commands,
                 nr_args,
@@ -248,16 +263,23 @@ where
 
                 let stepper = stream::unify::Stepper::new(stream::unify::Mode::Def, expr, commands);
 
-                (TermDef::RunUnify { stepper }, TermDefAction::StartUnify)
+                (
+                    TermDef::RunUnify { stream, stepper },
+                    TermDefAction::StartUnify,
+                )
             }
-            TermDef::RunUnify { mut stepper } => match stepper.step(state, table)? {
-                Some(x) => {
-                    //
-                    (TermDef::RunUnify { stepper }, TermDefAction::Unify(x))
-                }
-                None => (TermDef::Done, TermDefAction::Done),
+            TermDef::RunUnify {
+                stream,
+                mut stepper,
+            } => match stepper.step(state, table)? {
+                Some(x) => (
+                    TermDef::RunUnify { stream, stepper },
+                    TermDefAction::Unify(x),
+                ),
+                None => (TermDef::Done { stream }, TermDefAction::Done),
             },
-            TermDef::Done => (TermDef::Done, TermDefAction::Done),
+            TermDef::Done { stream } => (TermDef::Done { stream }, TermDefAction::Done),
+            TermDef::Dummy => (TermDef::Dummy, TermDefAction::Done),
         };
 
         std::mem::replace(self, next_state);
@@ -267,10 +289,7 @@ where
 }
 
 #[derive(Debug)]
-pub enum AxiomThm<S>
-where
-    S: Iterator<Item = usize>,
-{
+pub enum AxiomThm<S> {
     Start {
         idx: u32,
         is_axiom: bool,
@@ -283,14 +302,19 @@ where
         nr_args: usize,
     },
     ProofDone {
+        stream: S,
         is_axiom: bool,
         commands: Range<usize>,
         nr_args: usize,
     },
     RunUnify {
+        stream: S,
         stepper: stream::unify::Stepper,
     },
-    Done,
+    Done {
+        stream: S,
+    },
+    Dummy,
 }
 
 #[derive(Debug)]
@@ -305,7 +329,7 @@ pub enum AxiomThmAction {
 
 impl<S> AxiomThm<S>
 where
-    S: Iterator<Item = usize>,
+    S: Iterator<Item = opcode::Command<opcode::Proof>>,
 {
     pub fn new(idx: u32, stream: S, is_axiom: bool) -> AxiomThm<S> {
         AxiomThm::Start {
@@ -315,15 +339,22 @@ where
         }
     }
 
+    pub fn take_stream_if_done(self) -> Option<S> {
+        match self {
+            AxiomThm::Done { stream } => Some(stream),
+            _ => None,
+        }
+    }
+
     pub fn is_done(&self) -> bool {
         match self {
-            AxiomThm::Done => true,
+            AxiomThm::Done { .. } => true,
             _ => false,
         }
     }
 
     pub fn step<T: TableLike>(&mut self, state: &mut State, table: &T) -> TResult<AxiomThmAction> {
-        let old = std::mem::replace(self, Self::Done);
+        let old = std::mem::replace(self, Self::Dummy);
 
         let (next_state, ret_val) = match old {
             AxiomThm::Start {
@@ -388,6 +419,7 @@ where
                 }
                 None => (
                     AxiomThm::ProofDone {
+                        stream: stepper.take_stream(),
                         commands,
                         is_axiom,
                         nr_args,
@@ -396,6 +428,7 @@ where
                 ),
             },
             AxiomThm::ProofDone {
+                stream,
                 commands,
                 is_axiom,
                 nr_args,
@@ -437,13 +470,23 @@ where
                 let stepper =
                     stream::unify::Stepper::new(stream::unify::Mode::ThmEnd, expr, commands);
 
-                (AxiomThm::RunUnify { stepper }, AxiomThmAction::StartUnify)
+                (
+                    AxiomThm::RunUnify { stream, stepper },
+                    AxiomThmAction::StartUnify,
+                )
             }
-            AxiomThm::RunUnify { mut stepper } => match stepper.step(state, table)? {
-                Some(x) => (AxiomThm::RunUnify { stepper }, AxiomThmAction::Unify(x)),
-                None => (AxiomThm::Done, AxiomThmAction::Done),
+            AxiomThm::RunUnify {
+                stream,
+                mut stepper,
+            } => match stepper.step(state, table)? {
+                Some(x) => (
+                    AxiomThm::RunUnify { stream, stepper },
+                    AxiomThmAction::Unify(x),
+                ),
+                None => (AxiomThm::Done { stream }, AxiomThmAction::Done),
             },
-            AxiomThm::Done => (AxiomThm::Done, AxiomThmAction::Done),
+            AxiomThm::Done { stream } => (AxiomThm::Done { stream }, AxiomThmAction::Done),
+            AxiomThm::Dummy => (AxiomThm::Dummy, AxiomThmAction::Done),
         };
 
         std::mem::replace(self, next_state);
@@ -453,10 +496,7 @@ where
 }
 
 #[derive(Debug)]
-enum StepState<S>
-where
-    S: Iterator<Item = usize>,
-{
+enum StepState<S> {
     Normal,
     TermDef(TermDef<S>),
     AxiomThm(AxiomThm<S>),
@@ -469,7 +509,7 @@ where
     <S as Iterator>::Item: TryInto<Opcode>,
 {
     stream: S,
-    state: StepState<S::AsProof>,
+    state: StepState<S::ProofStream>,
 }
 
 #[derive(Debug)]
@@ -497,33 +537,46 @@ where
     }
 
     pub fn step<T: TableLike>(&mut self, state: &mut State, table: &T) -> TResult<Option<Action>> {
-        let mut old = std::mem::replace(&mut self.state, StepState::Normal);
+        let old = std::mem::replace(&mut self.state, StepState::Normal);
 
-        match old {
-            StepState::Normal => self.normal(state),
-            StepState::TermDef(ref mut td) => {
+        let (next_state, ret) = match old {
+            StepState::Normal => return self.normal(state),
+            StepState::TermDef(mut td) => {
                 if td.is_done() {
-                    std::mem::replace(&mut self.state, StepState::Normal);
+                    if let Some(stream) = td.take_stream_if_done() {
+                        self.stream.put_proof_stream(stream);
+                    } else {
+                        unreachable!("impossible");
+                    }
+
                     state.increment_current_term();
-                    Ok(Some(Action::TermDefDone))
+                    (StepState::Normal, Ok(Some(Action::TermDefDone)))
                 } else {
                     let ret = td.step(state, table)?;
-                    std::mem::replace(&mut self.state, old);
-                    Ok(Some(Action::TermDef(ret)))
+                    (StepState::TermDef(td), Ok(Some(Action::TermDef(ret))))
                 }
             }
-            StepState::AxiomThm(ref mut at) => {
+            StepState::AxiomThm(mut at) => {
                 if at.is_done() {
-                    std::mem::replace(&mut self.state, StepState::Normal);
+                    if let Some(stream) = at.take_stream_if_done() {
+                        self.stream.put_proof_stream(stream);
+                    } else {
+                        unreachable!("impossible");
+                    }
+
                     state.increment_current_theorem();
-                    Ok(Some(Action::AxiomThmDone))
+
+                    (StepState::Normal, Ok(Some(Action::AxiomThmDone)))
                 } else {
                     let ret = at.step(state, table)?;
-                    std::mem::replace(&mut self.state, old);
-                    Ok(Some(Action::AxiomThm(ret)))
+                    (StepState::AxiomThm(at), Ok(Some(Action::AxiomThm(ret))))
                 }
             }
-        }
+        };
+
+        std::mem::replace(&mut self.state, next_state);
+
+        ret
     }
 
     fn normal(&mut self, state: &mut State) -> TResult<Option<Action>> {
@@ -540,26 +593,21 @@ where
                     //
                 }
                 Opcode::TermDef => {
-                    let td = TermDef::new(state.get_current_term(), self.stream.as_proof_stream());
+                    let ps = self.stream.take_proof_stream();
+                    let td = TermDef::new(state.get_current_term(), ps);
 
                     self.state = StepState::TermDef(td);
                     Ok(Some(Action::TermDefStart))
                 }
                 Opcode::Axiom => {
-                    let at = AxiomThm::new(
-                        state.get_current_theorem(),
-                        self.stream.as_proof_stream(),
-                        true,
-                    );
+                    let ps = self.stream.take_proof_stream();
+                    let at = AxiomThm::new(state.get_current_theorem(), ps, true);
                     self.state = StepState::AxiomThm(at);
                     Ok(Some(Action::AxiomStart))
                 }
                 Opcode::Thm => {
-                    let at = AxiomThm::new(
-                        state.get_current_theorem(),
-                        self.stream.as_proof_stream(),
-                        false,
-                    );
+                    let ps = self.stream.take_proof_stream();
+                    let at = AxiomThm::new(state.get_current_theorem(), ps, false);
                     self.state = StepState::AxiomThm(at);
                     Ok(Some(Action::ThmStart))
                 }
