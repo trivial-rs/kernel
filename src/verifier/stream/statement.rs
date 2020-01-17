@@ -24,7 +24,7 @@ pub trait StatementStream: Iterator
 where
     <Self as Iterator>::Item: TryInto<Opcode>,
 {
-    type AsProof: Iterator<Item = u32> + std::fmt::Debug;
+    type AsProof: Iterator<Item = usize>;
 
     fn as_proof_stream(&self) -> Self::AsProof;
 }
@@ -69,7 +69,7 @@ pub trait Statement {
 #[derive(Debug)]
 pub enum TermDef<S>
 where
-    S: Iterator<Item = u32>,
+    S: Iterator<Item = usize>,
 {
     Start {
         idx: u32,
@@ -107,7 +107,7 @@ pub enum TermDefAction {
 
 impl<S> TermDef<S>
 where
-    S: Iterator<Item = u32>,
+    S: Iterator<Item = usize>,
 {
     pub fn new(idx: u32, stream: S) -> TermDef<S> {
         TermDef::Start { idx, stream }
@@ -269,7 +269,7 @@ where
 #[derive(Debug)]
 pub enum AxiomThm<S>
 where
-    S: Iterator<Item = u32>,
+    S: Iterator<Item = usize>,
 {
     Start {
         idx: u32,
@@ -305,7 +305,7 @@ pub enum AxiomThmAction {
 
 impl<S> AxiomThm<S>
 where
-    S: Iterator<Item = u32>,
+    S: Iterator<Item = usize>,
 {
     pub fn new(idx: u32, stream: S, is_axiom: bool) -> AxiomThm<S> {
         AxiomThm::Start {
@@ -455,7 +455,7 @@ where
 #[derive(Debug)]
 enum StepState<S>
 where
-    S: Iterator<Item = u32>,
+    S: Iterator<Item = usize>,
 {
     Normal,
     TermDef(TermDef<S>),

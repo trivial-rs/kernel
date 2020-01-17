@@ -755,7 +755,7 @@ pub enum Action {
 
 impl<S> Stepper<S>
 where
-    S: Iterator<Item = u32>,
+    S: Iterator<Item = usize>,
 {
     pub fn new(is_definition: bool, stream: S) -> Stepper<S> {
         Stepper {

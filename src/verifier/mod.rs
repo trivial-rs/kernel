@@ -324,7 +324,7 @@ pub trait TableLike {
 
     fn get_theorem(&self, idx: u32) -> Option<&Theorem>;
 
-    fn get_proof_command(&self, idx: u32) -> Option<&opcode::Command<opcode::Proof>>;
+    fn get_proof_command(&self, idx: usize) -> Option<&opcode::Command<opcode::Proof>>;
 
     fn get_unify_commands(&self, idx: Range<usize>) -> Option<&[opcode::Command<opcode::Unify>]>;
 
@@ -348,8 +348,8 @@ impl TableLike for Table {
         self.theorems.get(idx as usize)
     }
 
-    fn get_proof_command(&self, idx: u32) -> Option<&opcode::Command<opcode::Proof>> {
-        self.proof.get(idx as usize)
+    fn get_proof_command(&self, idx: usize) -> Option<&opcode::Command<opcode::Proof>> {
+        self.proof.get(idx)
     }
 
     fn get_unify_commands(&self, idx: Range<usize>) -> Option<&[opcode::Command<opcode::Unify>]> {
