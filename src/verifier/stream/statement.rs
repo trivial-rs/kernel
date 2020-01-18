@@ -4,7 +4,7 @@ use crate::verifier::stream;
 use crate::verifier::Heap;
 use crate::verifier::State;
 use crate::verifier::StoreElement;
-use crate::verifier::{TableLike, Term, Theorem, Type};
+use crate::verifier::{Sort, TableLike, Term, Theorem, Type};
 use crate::TResult;
 
 use core::ops::Range;

@@ -206,32 +206,42 @@ impl Term for Term_ {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct Sort(pub u8);
+pub struct Sort_(pub u8);
 
-impl From<u8> for Sort {
-    fn from(value: u8) -> Sort {
-        Sort(value)
+impl From<u8> for Sort_ {
+    fn from(value: u8) -> Sort_ {
+        Sort_(value)
     }
 }
 
-impl Sort {
+pub trait Sort {
+    fn is_pure(&self) -> bool;
+
+    fn is_strict(&self) -> bool;
+
+    fn is_provable(&self) -> bool;
+
+    fn is_free(&self) -> bool;
+}
+
+impl Sort for Sort_ {
     #[inline(always)]
-    fn is_pure(self) -> bool {
+    fn is_pure(&self) -> bool {
         (self.0 & 0x01) != 0
     }
 
     #[inline(always)]
-    fn is_strict(self) -> bool {
+    fn is_strict(&self) -> bool {
         (self.0 & 0x02) != 0
     }
 
     #[inline(always)]
-    fn is_provable(self) -> bool {
+    fn is_provable(&self) -> bool {
         (self.0 & 0x04) != 0
     }
 
     #[inline(always)]
-    fn is_free(self) -> bool {
+    fn is_free(&self) -> bool {
         (self.0 & 0x08) != 0
     }
 }
@@ -310,7 +320,7 @@ impl State {
 
 #[derive(Debug, Default)]
 pub struct Table {
-    pub sorts: Vec<Sort>,
+    pub sorts: Vec<Sort_>,
     pub theorems: Vec<Theorem_>,
     pub terms: Vec<Term_>,
     pub unify: Vec<opcode::Command<opcode::Unify>>,
@@ -320,10 +330,11 @@ pub struct Table {
 pub trait TableLike {
     type Term: Term;
     type Theorem: Theorem;
+    type Sort: Sort;
 
     fn get_term(&self, idx: u32) -> Option<&Self::Term>;
 
-    fn get_sort(&self, idx: u8) -> Option<&Sort>;
+    fn get_sort(&self, idx: u8) -> Option<&Self::Sort>;
 
     fn get_theorem(&self, idx: u32) -> Option<&Self::Theorem>;
 
@@ -337,12 +348,13 @@ pub trait TableLike {
 impl TableLike for Table {
     type Term = Term_;
     type Theorem = Theorem_;
+    type Sort = Sort_;
 
     fn get_term(&self, idx: u32) -> Option<&Self::Term> {
         self.terms.get(idx as usize)
     }
 
-    fn get_sort(&self, idx: u8) -> Option<&Sort> {
+    fn get_sort(&self, idx: u8) -> Option<&Self::Sort> {
         self.sorts.get(idx as usize)
     }
 
