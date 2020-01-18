@@ -1,4 +1,10 @@
-use crate::verifier::{heap::Heap, stack::Stack, store::Store};
+pub mod heap;
+pub mod stack;
+pub mod store;
+
+pub use heap::Heap;
+pub use stack::Stack;
+pub(crate) use store::Store;
 
 #[derive(Debug, Default)]
 pub struct State {

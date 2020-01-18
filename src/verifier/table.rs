@@ -1,5 +1,5 @@
 use crate::opcode;
-use crate::verifier::store::Type;
+use crate::verifier::state::store::Type;
 use core::ops::Range;
 
 pub trait Sort {

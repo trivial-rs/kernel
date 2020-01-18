@@ -1,4 +1,4 @@
-use crate::verifier::store::{PackedStorePointer, Store};
+use super::store::{PackedStorePointer, Store};
 
 #[derive(Debug, Default)]
 pub struct Heap {

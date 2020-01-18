@@ -1,13 +1,14 @@
 use crate::error::Kind;
-use crate::verifier::store::StoreElement;
-use crate::verifier::store::StoreTerm;
-use crate::verifier::store::Type;
+use crate::verifier::state::store::StoreConv;
+use crate::verifier::state::store::StoreElement;
+use crate::verifier::state::store::StorePointer;
+use crate::verifier::state::store::StoreTerm;
+use crate::verifier::state::store::Type;
 use crate::verifier::stream;
 use crate::verifier::{Sort, State, Table, Term, Theorem};
 use crate::TResult;
 
 use crate::opcode;
-use crate::verifier::store::StorePointer;
 
 pub enum FinalizeState {
     Theorem(StorePointer, bool),
@@ -652,8 +653,6 @@ where
     }
 
     fn conv_ref(&mut self, idx: u32) -> TResult {
-        use crate::verifier::store::StoreConv;
-
         let x: StoreConv = self.store.get(StorePointer(idx))?;
 
         let e1 = self

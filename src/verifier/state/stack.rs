@@ -1,5 +1,5 @@
+use super::store::{PackedStorePointer, Store};
 use crate::error::{Kind, TResult};
-use crate::verifier::store::{PackedStorePointer, Store};
 
 #[derive(Debug, Default)]
 pub struct Stack {

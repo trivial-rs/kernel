@@ -1,7 +1,7 @@
 use crate::error::Kind;
-use crate::verifier::store::StorePointer;
-use crate::verifier::store::StoreTerm;
-use crate::verifier::{State, Table};
+use crate::verifier::state::store::StorePointer;
+use crate::verifier::state::store::StoreTerm;
+use crate::verifier::{state::State, Table};
 use crate::TResult;
 use core::ops::Range;
 use std::convert::TryInto;
@@ -105,7 +105,7 @@ impl Unify for State {
             .as_expr()
             .ok_or(Kind::InvalidStackType)?;
 
-        use crate::verifier::store::StoreVar;
+        use crate::verifier::state::store::StoreVar;
         let var: StoreVar = self.store.get(e)?;
         let ty = var.ty;
 
