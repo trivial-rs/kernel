@@ -43,7 +43,13 @@ fn allocate_var(proof_heap: &mut Heap, store: &mut Store, x: (usize, &Type)) {
     proof_heap.push(ptr);
 }
 
-fn binder_check<T: TableLike>(table: &T, ty: Type, bv: &mut u64) -> TResult {
+fn binder_check<T: TableLike>(table: &T, ty: Type, current_sort: u8, bv: &mut u64) -> TResult {
+    let idx = ty.get_sort_idx();
+
+    if idx >= current_sort {
+        return Err(Kind::SortOutOfRange);
+    }
+
     let sort = table.get_sort(ty.get_sort_idx()).ok_or(Kind::InvalidSort)?;
     let deps = ty.get_deps();
 
@@ -139,9 +145,15 @@ where
         let (next_state, ret_val) = match old {
             TermDef::Start { idx, stream } => {
                 let term = table.get_term(idx).ok_or(Kind::InvalidTerm)?;
-                let sort = table
-                    .get_sort(term.get_sort_idx())
-                    .ok_or(Kind::InvalidSort)?;
+
+                let sort_idx = term.get_sort_idx();
+                let current_sort = state.get_current_sort();
+
+                if sort_idx >= current_sort {
+                    return Err(Kind::SortOutOfRange);
+                }
+
+                let sort = table.get_sort(sort_idx).ok_or(Kind::InvalidSort)?;
 
                 if sort.is_pure() {
                     return Err(Kind::SortIsPure);
@@ -162,14 +174,14 @@ where
                 let mut next_bv = 1;
 
                 for (i, ty) in binders.iter().enumerate() {
-                    binder_check(table, *ty, &mut next_bv)?;
+                    binder_check(table, *ty, current_sort, &mut next_bv)?;
 
                     allocate_var(&mut state.proof_heap, &mut state.store, (i, ty));
                 }
 
                 let ret_type = term.get_return_type();
 
-                binder_check(table, ret_type, &mut next_bv)?;
+                binder_check(table, ret_type, current_sort, &mut next_bv)?;
 
                 state.next_bv = next_bv;
 
@@ -378,8 +390,10 @@ where
 
                 let mut next_bv = 1;
 
+                let current_sort = state.get_current_sort();
+
                 for (i, ty) in binders.iter().enumerate() {
-                    binder_check(table, *ty, &mut next_bv)?;
+                    binder_check(table, *ty, current_sort, &mut next_bv)?;
                     allocate_var(&mut state.proof_heap, &mut state.store, (i, ty));
                 }
 
@@ -589,8 +603,8 @@ where
                     //
                 }
                 Opcode::Sort => {
+                    state.increment_current_sort();
                     Ok(Some(Action::Sort))
-                    //
                 }
                 Opcode::TermDef => {
                     let ps = self.stream.take_proof_stream();

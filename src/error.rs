@@ -36,6 +36,9 @@ pub enum Kind {
     HypInDefStatement,
     InvalidOpcodeInDef,
     Impossible,
+    TheoremOutOfRange,
+    TermOutOfRange,
+    SortOutOfRange,
     StreamExhausted,
 }
 

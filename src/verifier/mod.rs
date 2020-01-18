@@ -239,6 +239,7 @@ pub struct State {
     next_bv: u64,
     current_term: u32,
     current_theorem: u32,
+    current_sort: u8,
 }
 
 impl Display for State {
@@ -288,6 +289,14 @@ impl State {
 
     pub fn increment_current_theorem(&mut self) {
         self.current_theorem += 1;
+    }
+
+    pub fn get_current_sort(&self) -> u8 {
+        self.current_sort
+    }
+
+    pub fn increment_current_sort(&mut self) {
+        self.current_sort += 1;
     }
 }
 

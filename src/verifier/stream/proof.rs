@@ -158,6 +158,10 @@ where
     }
 
     fn dummy(&mut self, table: &T, sort: u32) -> TResult {
+        if sort >= self.get_current_sort() as u32 {
+            return Err(Kind::SortOutOfRange);
+        }
+
         let s = table.get_sort(sort as u8).ok_or(Kind::InvalidSort)?;
 
         if s.is_strict() {
@@ -186,6 +190,10 @@ where
     }
 
     fn term(&mut self, table: &T, idx: u32, save: bool, def: bool) -> TResult {
+        if idx >= self.get_current_term() {
+            return Err(Kind::TermOutOfRange);
+        }
+
         let term = table.get_term(idx).ok_or(Kind::InvalidTerm)?;
         let last = self.proof_stack.get_last(term.nr_args())?;
 
@@ -299,6 +307,10 @@ where
         idx: u32,
         save: bool,
     ) -> TResult<(stream::unify::Stepper, FinalizeState)> {
+        if idx >= self.get_current_theorem() {
+            return Err(Kind::TheoremOutOfRange);
+        }
+
         let thm = table.get_theorem(idx).ok_or(Kind::InvalidTheorem)?;
         let target = self
             .proof_stack
