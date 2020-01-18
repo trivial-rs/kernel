@@ -14,7 +14,7 @@ pub enum FinalizeState {
     Unfold(StorePointer, StorePointer),
 }
 
-pub trait Proof<'a, T>
+pub trait Proof<T>
 where
     T: TableLike,
 {
@@ -47,7 +47,7 @@ where
 
     fn cong(&mut self) -> TResult;
 
-    fn unfold_start(&mut self, table: &'a T) -> TResult<(stream::unify::Stepper, FinalizeState)>;
+    fn unfold_start(&mut self, table: &T) -> TResult<(stream::unify::Stepper, FinalizeState)>;
 
     fn unfold_end(&mut self, t_ptr: StorePointer, e: StorePointer) -> TResult;
 
@@ -96,7 +96,7 @@ where
 
     fn step(
         &mut self,
-        table: &'a T,
+        table: &T,
         command: opcode::Command<opcode::Proof>,
         is_definition: bool,
     ) -> TResult<Option<(stream::unify::Stepper, FinalizeState)>> {
@@ -140,7 +140,7 @@ where
     }
 }
 
-impl<'a, T> Proof<'a, T> for State
+impl<T> Proof<T> for State
 where
     T: TableLike,
 {
@@ -509,7 +509,7 @@ where
         Ok(())
     }
 
-    fn unfold_start(&mut self, table: &'a T) -> TResult<(stream::unify::Stepper, FinalizeState)> {
+    fn unfold_start(&mut self, table: &T) -> TResult<(stream::unify::Stepper, FinalizeState)> {
         let e = self
             .proof_stack
             .pop()
