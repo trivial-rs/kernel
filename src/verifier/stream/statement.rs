@@ -4,7 +4,7 @@ use crate::verifier::stream;
 use crate::verifier::Heap;
 use crate::verifier::State;
 use crate::verifier::StoreElement;
-use crate::verifier::{Sort, TableLike, Term, Theorem, Type};
+use crate::verifier::{Sort, Table, Term, Theorem, Type};
 use crate::TResult;
 
 use core::ops::Range;
@@ -41,7 +41,7 @@ fn allocate_var(proof_heap: &mut Heap, store: &mut Store, x: (usize, &Type)) {
     proof_heap.push(ptr);
 }
 
-fn binder_check<T: TableLike>(table: &T, ty: Type, current_sort: u8, bv: &mut u64) -> TResult {
+fn binder_check<T: Table>(table: &T, ty: Type, current_sort: u8, bv: &mut u64) -> TResult {
     let idx = ty.get_sort_idx();
 
     if idx >= current_sort {
@@ -137,7 +137,7 @@ where
         }
     }
 
-    pub fn step<T: TableLike>(&mut self, state: &mut State, table: &T) -> TResult<TermDefAction> {
+    pub fn step<T: Table>(&mut self, state: &mut State, table: &T) -> TResult<TermDefAction> {
         let old = std::mem::replace(self, Self::Dummy);
 
         let (next_state, ret_val) = match old {
@@ -158,6 +158,7 @@ where
                 }
 
                 let binders = term.get_binders();
+                let nr_args = binders.len();
                 let binders = table
                     .get_binders(binders)
                     .ok_or(Kind::InvalidBinderIndices)?;
@@ -198,7 +199,7 @@ where
                         TermDef::RunProof {
                             stepper,
                             ret_type,
-                            nr_args: term.nr_args() as usize,
+                            nr_args,
                             commands,
                         },
                         TermDefAction::StartProof,
@@ -363,7 +364,7 @@ where
         }
     }
 
-    pub fn step<T: TableLike>(&mut self, state: &mut State, table: &T) -> TResult<AxiomThmAction> {
+    pub fn step<T: Table>(&mut self, state: &mut State, table: &T) -> TResult<AxiomThmAction> {
         let old = std::mem::replace(self, Self::Dummy);
 
         let (next_state, ret_val) = match old {
@@ -382,6 +383,7 @@ where
                 state.hyp_stack.clear();
 
                 let binders = thm.get_binders();
+                let nr_args = binders.len();
                 let binders = table
                     .get_binders(binders)
                     .ok_or(Kind::InvalidBinderIndices)?;
@@ -406,7 +408,7 @@ where
                         stepper,
                         commands,
                         is_axiom,
-                        nr_args: thm.get_nr_args() as usize,
+                        nr_args,
                     },
                     AxiomThmAction::StartProof,
                 )
@@ -548,7 +550,7 @@ where
         }
     }
 
-    pub fn step<T: TableLike>(&mut self, state: &mut State, table: &T) -> TResult<Option<Action>> {
+    pub fn step<T: Table>(&mut self, state: &mut State, table: &T) -> TResult<Option<Action>> {
         let old = std::mem::replace(&mut self.state, StepState::Normal);
 
         let (next_state, ret) = match old {

@@ -1,8 +1,7 @@
 use crate::error::Kind;
 use crate::verifier::store::StorePointer;
 use crate::verifier::store::StoreTerm;
-use crate::verifier::State;
-use crate::verifier::TableLike;
+use crate::verifier::{State, Table};
 use crate::TResult;
 use core::ops::Range;
 use std::convert::TryInto;
@@ -170,7 +169,7 @@ pub trait Run {
         target: StorePointer,
     ) -> TResult
     where
-        T: TableLike;
+        T: Table;
 }
 
 impl Run for State {
@@ -182,7 +181,7 @@ impl Run for State {
         target: StorePointer,
     ) -> TResult
     where
-        T: TableLike,
+        T: Table,
     {
         self.unify_stack.clear();
         self.unify_stack.push(target.to_expr());
@@ -227,7 +226,7 @@ impl Stepper {
         }
     }
 
-    pub fn step<T: TableLike>(&mut self, state: &mut State, table: &T) -> TResult<Option<Action>> {
+    pub fn step<T: Table>(&mut self, state: &mut State, table: &T) -> TResult<Option<Action>> {
         if !self.started {
             state.unify_stack.clear();
             state.unify_stack.push(self.target.to_expr());

@@ -3,7 +3,7 @@ use crate::verifier::store::StoreElement;
 use crate::verifier::store::StoreTerm;
 use crate::verifier::store::Type;
 use crate::verifier::stream;
-use crate::verifier::{Sort, State, TableLike, Term, Theorem};
+use crate::verifier::{Sort, State, Table, Term, Theorem};
 use crate::TResult;
 
 use crate::opcode;
@@ -16,7 +16,7 @@ pub enum FinalizeState {
 
 pub trait Proof<T>
 where
-    T: TableLike,
+    T: Table,
 {
     fn end(&mut self) -> TResult;
 
@@ -142,7 +142,7 @@ where
 
 impl<T> Proof<T> for State
 where
-    T: TableLike,
+    T: Table,
 {
     fn end(&mut self) -> TResult {
         // todo: make this check the stack?
@@ -195,9 +195,11 @@ where
         }
 
         let term = table.get_term(idx).ok_or(Kind::InvalidTerm)?;
-        let last = self.proof_stack.get_last(term.nr_args())?;
 
         let binders = term.get_binders();
+        let nr_args = binders.len();
+        let last = self.proof_stack.get_last(nr_args)?;
+
         let binders = table
             .get_binders(binders)
             .ok_or(Kind::InvalidBinderIndices)?;
@@ -211,7 +213,7 @@ where
             def,
         )?;
 
-        self.proof_stack.truncate_last(term.nr_args());
+        self.proof_stack.truncate_last(nr_args);
 
         self.proof_stack.push(ptr);
 
@@ -230,9 +232,11 @@ where
             .ok_or(Kind::ProofStackUnderflow)?
             .as_expr()
             .ok_or(Kind::InvalidStoreExpr)?;
-        let last = self.proof_stack.get_last(thm.get_nr_args())?;
 
         let types = thm.get_binders();
+        let nr_args = types.len();
+        let last = self.proof_stack.get_last(nr_args)?;
+
         let types = table.get_binders(types).ok_or(Kind::InvalidBinderIndices)?;
 
         self.unify_heap.clear();
@@ -284,7 +288,7 @@ where
         }
 
         self.unify_heap.extend(last);
-        self.proof_stack.truncate_last(thm.get_nr_args());
+        self.proof_stack.truncate_last(nr_args);
 
         let commands = thm.get_unify_commands();
 
@@ -318,9 +322,11 @@ where
             .ok_or(Kind::ProofStackUnderflow)?
             .as_expr()
             .ok_or(Kind::InvalidStoreExpr)?;
-        let last = self.proof_stack.get_last(thm.get_nr_args())?;
 
         let types = thm.get_binders();
+        let nr_args = types.len();
+        let last = self.proof_stack.get_last(nr_args)?;
+
         let types = table.get_binders(types).ok_or(Kind::InvalidBinderIndices)?;
 
         self.unify_heap.clear();
@@ -372,7 +378,7 @@ where
         }
 
         self.unify_heap.extend(last);
-        self.proof_stack.truncate_last(thm.get_nr_args());
+        self.proof_stack.truncate_last(nr_args);
 
         let commands = thm.get_unify_commands();
 
@@ -701,14 +707,14 @@ where
 use std::convert::TryInto;
 
 pub trait Run {
-    fn run<T: TableLike, S>(&mut self, table: &T, is_definition: bool, stream: S) -> TResult
+    fn run<T: Table, S>(&mut self, table: &T, is_definition: bool, stream: S) -> TResult
     where
         S: IntoIterator,
         S::Item: TryInto<opcode::Command<opcode::Proof>>;
 }
 
 impl Run for State {
-    fn run<T: TableLike, S>(&mut self, table: &T, is_definition: bool, stream: S) -> TResult
+    fn run<T: Table, S>(&mut self, table: &T, is_definition: bool, stream: S) -> TResult
     where
         S: IntoIterator,
         S::Item: TryInto<opcode::Command<opcode::Proof>>,
@@ -783,7 +789,7 @@ where
         self.stream
     }
 
-    pub fn step<T: TableLike>(&mut self, state: &mut State, table: &T) -> TResult<Option<Action>> {
+    pub fn step<T: Table>(&mut self, state: &mut State, table: &T) -> TResult<Option<Action>> {
         let (next_state, ret) = match &mut self.con {
             Continue::Normal => {
                 if let Some(command) = self.stream.next() {
