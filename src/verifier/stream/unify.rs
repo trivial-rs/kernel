@@ -238,21 +238,14 @@ impl Stepper {
 
             match current_idx {
                 Some(idx) => {
-                    let el = table
+                    let command = table
                         .get_unify_command(idx)
                         .ok_or(Kind::InvalidUnifyCommandIndex)?;
 
-                    let command = el.try_into().map_err(|_| Kind::UnknownCommand);
-
-                    match command {
-                        Ok(command) => {
-                            if state.execute(command, self.mode)? {
-                                Ok(None)
-                            } else {
-                                Ok(Some(Action::Cmd(idx, command)))
-                            }
-                        }
-                        Err(_) => Err(Kind::UnknownCommand),
+                    if state.execute(*command, self.mode)? {
+                        Ok(None)
+                    } else {
+                        Ok(Some(Action::Cmd(idx, *command)))
                     }
                 }
                 None => Ok(None),
