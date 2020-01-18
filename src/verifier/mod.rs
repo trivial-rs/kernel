@@ -130,12 +130,20 @@ use crate::opcode;
 use core::ops::Range;
 
 #[derive(Debug)]
-pub struct Theorem {
+pub struct Theorem_ {
     pub binders: Range<usize>,
     pub unify_commands: Range<usize>,
 }
 
-impl Theorem {
+pub trait Theorem {
+    fn get_nr_args(&self) -> u16;
+
+    fn get_binders(&self) -> Range<usize>;
+
+    fn get_unify_commands(&self) -> Range<usize>;
+}
+
+impl Theorem for Theorem_ {
     fn get_nr_args(&self) -> u16 {
         self.binders.len() as u16
     }
@@ -303,34 +311,21 @@ impl State {
 #[derive(Debug, Default)]
 pub struct Table {
     pub sorts: Vec<Sort>,
-    pub theorems: Vec<Theorem>,
+    pub theorems: Vec<Theorem_>,
     pub terms: Vec<Term_>,
     pub unify: Vec<opcode::Command<opcode::Unify>>,
     pub binders: Vec<store::Type>,
 }
 
-impl Table {
-    pub fn add_sort(&mut self, sort: Sort) {
-        self.sorts.push(sort);
-    }
-
-    pub fn add_theorem(&mut self, theorem: Theorem) {
-        self.theorems.push(theorem);
-    }
-
-    pub fn add_term(&mut self, term: Term_) {
-        self.terms.push(term);
-    }
-}
-
 pub trait TableLike {
     type Term: Term;
+    type Theorem: Theorem;
 
     fn get_term(&self, idx: u32) -> Option<&Self::Term>;
 
     fn get_sort(&self, idx: u8) -> Option<&Sort>;
 
-    fn get_theorem(&self, idx: u32) -> Option<&Theorem>;
+    fn get_theorem(&self, idx: u32) -> Option<&Self::Theorem>;
 
     fn get_unify_commands(&self, idx: Range<usize>) -> Option<&[opcode::Command<opcode::Unify>]>;
 
@@ -341,6 +336,7 @@ pub trait TableLike {
 
 impl TableLike for Table {
     type Term = Term_;
+    type Theorem = Theorem_;
 
     fn get_term(&self, idx: u32) -> Option<&Self::Term> {
         self.terms.get(idx as usize)
@@ -350,7 +346,7 @@ impl TableLike for Table {
         self.sorts.get(idx as usize)
     }
 
-    fn get_theorem(&self, idx: u32) -> Option<&Theorem> {
+    fn get_theorem(&self, idx: u32) -> Option<&Self::Theorem> {
         self.theorems.get(idx as usize)
     }
 

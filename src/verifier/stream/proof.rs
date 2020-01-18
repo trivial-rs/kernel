@@ -3,7 +3,7 @@ use crate::verifier::store::StoreElement;
 use crate::verifier::store::StoreTerm;
 use crate::verifier::store::Type;
 use crate::verifier::stream;
-use crate::verifier::{State, TableLike, Term};
+use crate::verifier::{State, TableLike, Term, Theorem};
 use crate::TResult;
 
 use crate::opcode;
