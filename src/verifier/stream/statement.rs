@@ -561,6 +561,14 @@ where
         }
     }
 
+    pub fn get_stream(&self) -> &S {
+        &self.stream
+    }
+
+    pub fn get_stream_mut(&mut self) -> &mut S {
+        &mut self.stream
+    }
+
     pub fn step<SS: Store<Type = Ty>, T: Table<Type = SS::Type>>(
         &mut self,
         state: &mut State<SS>,
