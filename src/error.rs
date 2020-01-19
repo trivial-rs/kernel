@@ -14,6 +14,7 @@ pub enum Kind {
     IncompatibleTypes,
     DependencyOverflow,
     UnifyStackUnderflow,
+    CantSaveConvertabilityObligation,
     UnifyRefFailure,
     UnifyTermFailure,
     ProofStackUnderflow,

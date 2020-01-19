@@ -59,6 +59,8 @@ where
 
     fn conv_save(&mut self) -> TResult;
 
+    fn save(&mut self) -> TResult;
+
     fn execute(
         &mut self,
         table: &T,
@@ -689,6 +691,29 @@ where
         self.proof_heap.push(ptr);
 
         Ok(())
+    }
+
+    fn save(&mut self) -> TResult {
+        let element = self.proof_stack.peek().ok_or(Kind::ProofStackUnderflow)?;
+
+        if element.as_co_conv().is_some() {
+            return Err(Kind::CantSaveConvertabilityObligation);
+        }
+
+        if element.as_conv().is_some() {
+            let e = self.proof_stack.get_last(2)?;
+
+            let l = e[0].to_ptr().to_expr();
+            let r = e[1].to_ptr().to_expr();
+
+            let ptr = self.store.alloc_conv(l, r);
+            self.proof_heap.push(ptr);
+
+            Ok(())
+        } else {
+            self.proof_heap.push(*element);
+            Ok(())
+        }
     }
 }
 

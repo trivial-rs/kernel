@@ -23,6 +23,10 @@ impl Stack {
         self.data.pop()
     }
 
+    pub fn peek(&self) -> Option<&PackedPtr> {
+        self.data.last()
+    }
+
     pub fn len(&self) -> usize {
         self.data.len()
     }
