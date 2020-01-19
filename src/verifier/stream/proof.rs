@@ -91,6 +91,7 @@ where
             (ConvCut, _) => self.conv_cut(),
             (ConvRef, _) => self.conv_ref(command.operand),
             (ConvSave, _) => self.conv_save(),
+            (Save, _) => self.save(),
         }?;
 
         Ok(false)
@@ -135,6 +136,7 @@ where
             (ConvCut, _) => self.conv_cut(),
             (ConvRef, _) => self.conv_ref(command.operand),
             (ConvSave, _) => self.conv_save(),
+            (Save, _) => self.save(),
         }?;
 
         //
