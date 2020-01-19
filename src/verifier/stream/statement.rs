@@ -554,6 +554,13 @@ where
         }
     }
 
+    pub fn is_state_normal(&self) -> bool {
+        match self.state {
+            StepState::Normal => true,
+            _ => false,
+        }
+    }
+
     pub fn step<SS: Store<Type = Ty>, T: Table<Type = SS::Type>>(
         &mut self,
         state: &mut State<SS>,

@@ -192,6 +192,7 @@ impl<S: Store> Run<S> for State<S> {
 #[derive(Debug)]
 pub struct Stepper {
     started: bool,
+    done: bool,
     mode: Mode,
     target: Ptr,
     stream: Range<usize>,
@@ -207,6 +208,7 @@ impl Stepper {
     pub fn new(mode: Mode, target: Ptr, stream: Range<usize>) -> Stepper {
         Stepper {
             started: false,
+            done: false,
             mode,
             target,
             stream,
@@ -218,7 +220,9 @@ impl Stepper {
         state: &mut State<S>,
         table: &T,
     ) -> TResult<Option<Action>> {
-        if !self.started {
+        if self.done {
+            Ok(None)
+        } else if !self.started {
             state.unify_stack.clear();
             state.unify_stack.push(self.target.to_expr());
             self.started = true;
@@ -232,11 +236,9 @@ impl Stepper {
                         .get_unify_command(idx)
                         .ok_or(Kind::InvalidUnifyCommandIndex)?;
 
-                    if state.execute(*command, self.mode)? {
-                        Ok(None)
-                    } else {
-                        Ok(Some(Action::Cmd(idx, *command)))
-                    }
+                    self.done = state.execute(*command, self.mode)?;
+
+                    Ok(Some(Action::Cmd(idx, *command)))
                 }
                 None => Ok(None),
             }
