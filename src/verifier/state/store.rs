@@ -1,14 +1,14 @@
 use crate::verifier::{Type, Type_};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub struct PackedStorePointer(u32);
+pub struct PackedPtr(u32);
 
-impl PackedStorePointer {
-    pub fn expr(e: u32) -> PackedStorePointer {
-        PackedStorePointer(e << 2)
+impl PackedPtr {
+    pub fn expr(e: u32) -> PackedPtr {
+        PackedPtr(e << 2)
     }
 
-    pub fn as_expr(self) -> Option<StorePointer> {
+    pub fn as_expr(self) -> Option<Ptr> {
         if self.0 & 0x3 == 0x0 {
             Some(self.to_ptr())
         } else {
@@ -16,11 +16,11 @@ impl PackedStorePointer {
         }
     }
 
-    pub fn proof(e: u32) -> PackedStorePointer {
-        PackedStorePointer((e << 2) | 0x01)
+    pub fn proof(e: u32) -> PackedPtr {
+        PackedPtr((e << 2) | 0x01)
     }
 
-    pub fn as_proof(self) -> Option<StorePointer> {
+    pub fn as_proof(self) -> Option<Ptr> {
         if self.0 & 0x03 == 0x01 {
             Some(self.to_ptr())
         } else {
@@ -28,11 +28,11 @@ impl PackedStorePointer {
         }
     }
 
-    pub fn conv(e: u32) -> PackedStorePointer {
-        PackedStorePointer((e << 2) | 0x02)
+    pub fn conv(e: u32) -> PackedPtr {
+        PackedPtr((e << 2) | 0x02)
     }
 
-    pub fn as_conv(self) -> Option<StorePointer> {
+    pub fn as_conv(self) -> Option<Ptr> {
         if self.0 & 0x03 == 0x02 {
             Some(self.to_ptr())
         } else {
@@ -40,11 +40,11 @@ impl PackedStorePointer {
         }
     }
 
-    pub fn co_conv(e: u32) -> PackedStorePointer {
-        PackedStorePointer((e << 2) | 0x03)
+    pub fn co_conv(e: u32) -> PackedPtr {
+        PackedPtr((e << 2) | 0x03)
     }
 
-    pub fn as_co_conv(self) -> Option<StorePointer> {
+    pub fn as_co_conv(self) -> Option<Ptr> {
         if self.0 & 0x03 == 0x03 {
             Some(self.to_ptr())
         } else {
@@ -52,26 +52,26 @@ impl PackedStorePointer {
         }
     }
 
-    pub fn to_ptr(self) -> StorePointer {
-        StorePointer(self.0 >> 2)
+    pub fn to_ptr(self) -> Ptr {
+        Ptr(self.0 >> 2)
     }
 
-    pub fn to_display<'a, S: Store>(&self, store: &'a S) -> DisplayPackedStorePointer<'a, S> {
-        DisplayPackedStorePointer(*self, store)
+    pub fn to_display<'a, S: Store>(&self, store: &'a S) -> DisplayPackedPtr<'a, S> {
+        DisplayPackedPtr(*self, store)
     }
 }
 
 use std::fmt::{self, Display, Formatter};
 
-pub struct DisplayPackedStorePointer<'a, S: Store>(PackedStorePointer, &'a S);
+pub struct DisplayPackedPtr<'a, S: Store>(PackedPtr, &'a S);
 
-impl<'a, S: Store> Display for DisplayPackedStorePointer<'a, S> {
+impl<'a, S: Store> Display for DisplayPackedPtr<'a, S> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}", self.0.to_ptr().0)
     }
 }
 
-impl Display for PackedStorePointer {
+impl Display for PackedPtr {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self.0 & 0x03 {
             0x00 => write!(f, "expr"),
@@ -84,27 +84,27 @@ impl Display for PackedStorePointer {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub struct StorePointer(pub u32);
+pub struct Ptr(pub u32);
 
-impl StorePointer {
+impl Ptr {
     #[inline(always)]
-    pub fn to_proof(self) -> PackedStorePointer {
-        PackedStorePointer::proof(self.0)
+    pub fn to_proof(self) -> PackedPtr {
+        PackedPtr::proof(self.0)
     }
 
     #[inline(always)]
-    pub fn to_expr(self) -> PackedStorePointer {
-        PackedStorePointer::expr(self.0)
+    pub fn to_expr(self) -> PackedPtr {
+        PackedPtr::expr(self.0)
     }
 
     #[inline(always)]
-    pub fn to_co_conv(self) -> PackedStorePointer {
-        PackedStorePointer::co_conv(self.0)
+    pub fn to_co_conv(self) -> PackedPtr {
+        PackedPtr::co_conv(self.0)
     }
 
     #[inline(always)]
-    pub fn to_conv(self) -> PackedStorePointer {
-        PackedStorePointer::conv(self.0)
+    pub fn to_conv(self) -> PackedPtr {
+        PackedPtr::conv(self.0)
     }
 
     #[inline(always)]
@@ -122,12 +122,12 @@ pub enum StoreElement<'a, Ty> {
     Term {
         ty: Ty,
         id: u32,
-        args: &'a [PackedStorePointer],
+        args: &'a [PackedPtr],
     },
     /// Convertability proof
     Conv {
-        e1: PackedStorePointer,
-        e2: PackedStorePointer,
+        e1: PackedPtr,
+        e2: PackedPtr,
     },
 }
 
@@ -140,12 +140,12 @@ pub enum StoreElementRef<'a, Ty> {
     Term {
         ty: &'a Ty,
         id: &'a u32,
-        args: &'a [PackedStorePointer],
+        args: &'a [PackedPtr],
     },
     /// Convertability proof
     Conv {
-        e1: &'a PackedStorePointer,
-        e2: &'a PackedStorePointer,
+        e1: &'a PackedPtr,
+        e2: &'a PackedPtr,
     },
 }
 
@@ -188,21 +188,21 @@ impl<'a, 'b, Ty: Type, S: Store<Type = Ty>> Display for DisplayElement<'a, 'b, T
 }
 
 #[derive(Debug)]
-pub struct StoreTerm<'a, Ty> {
+pub struct Term<'a, Ty> {
     pub ty: &'a Ty,
     pub id: &'a u32,
-    pub args: &'a [PackedStorePointer],
+    pub args: &'a [PackedPtr],
 }
 
 use std::convert::TryFrom;
 use std::convert::TryInto;
 
-impl<'a, Ty> TryFrom<StoreElementRef<'a, Ty>> for StoreTerm<'a, Ty> {
+impl<'a, Ty> TryFrom<StoreElementRef<'a, Ty>> for Term<'a, Ty> {
     type Error = Kind;
 
     fn try_from(element: StoreElementRef<'a, Ty>) -> Result<Self, Self::Error> {
         if let StoreElementRef::Term { ty, id, args } = element {
-            Ok(StoreTerm { ty, id, args })
+            Ok(Term { ty, id, args })
         } else {
             Err(Kind::InvalidStoreType)
         }
@@ -211,8 +211,8 @@ impl<'a, Ty> TryFrom<StoreElementRef<'a, Ty>> for StoreTerm<'a, Ty> {
 
 #[derive(Debug)]
 pub struct StoreConv {
-    pub e1: PackedStorePointer,
-    pub e2: PackedStorePointer,
+    pub e1: PackedPtr,
+    pub e2: PackedPtr,
 }
 
 impl<'a, Ty> TryFrom<StoreElementRef<'a, Ty>> for StoreConv {
@@ -258,19 +258,18 @@ enum InternalStoreElement {
         ptr_args: usize,
     },
     Conv {
-        e1: PackedStorePointer,
-        e2: PackedStorePointer,
+        e1: PackedPtr,
+        e2: PackedPtr,
     },
 }
 
 #[derive(Debug, Default)]
 pub struct Store_ {
     data: Vec<InternalStoreElement>,
-    args: Vec<PackedStorePointer>,
+    args: Vec<PackedPtr>,
 }
 
-use crate::error::Kind;
-use crate::error::TResult;
+use crate::error::{Kind, TResult};
 
 pub trait Store {
     type Type: Type;
@@ -278,26 +277,26 @@ pub trait Store {
     fn create_term(
         &mut self,
         id: u32,
-        args: &[PackedStorePointer],
+        args: &[PackedPtr],
         types: &[Self::Type],
         ret_type: &Self::Type,
         sort: u8,
         def: bool,
-    ) -> TResult<PackedStorePointer>;
+    ) -> TResult<PackedPtr>;
 
-    fn alloc_var(&mut self, ty: Self::Type, idx: u16) -> PackedStorePointer;
+    fn alloc_var(&mut self, ty: Self::Type, idx: u16) -> PackedPtr;
 
-    fn alloc_conv(&mut self, l: PackedStorePointer, r: PackedStorePointer) -> PackedStorePointer;
+    fn alloc_conv(&mut self, l: PackedPtr, r: PackedPtr) -> PackedPtr;
 
     fn clear(&mut self);
 
-    fn get_type_of_expr(&self, ptr: StorePointer) -> Option<&Self::Type>;
+    fn get_type_of_expr(&self, ptr: Ptr) -> Option<&Self::Type>;
 
-    fn get_element(&self, ptr: StorePointer) -> Option<StoreElementRef<Self::Type>>;
+    fn get_element(&self, ptr: Ptr) -> Option<StoreElementRef<Self::Type>>;
 
     fn get<'a, T: TryFrom<StoreElementRef<'a, Self::Type>, Error = Kind>>(
         &'a self,
-        ptr: StorePointer,
+        ptr: Ptr,
     ) -> TResult<T>;
 }
 
@@ -307,12 +306,12 @@ impl Store for Store_ {
     fn create_term(
         &mut self,
         id: u32,
-        args: &[PackedStorePointer],
+        args: &[PackedPtr],
         types: &[Type_],
         ret_type: &Type_,
         sort: u8,
         def: bool,
-    ) -> TResult<PackedStorePointer> {
+    ) -> TResult<PackedPtr> {
         let offset = self.args.len();
         let mut accum = 0;
         let mut g_deps = [0; 256];
@@ -377,23 +376,23 @@ impl Store for Store_ {
 
         self.data.push(ise);
 
-        Ok(PackedStorePointer::expr(size))
+        Ok(PackedPtr::expr(size))
     }
 
-    fn alloc_var(&mut self, ty: Self::Type, idx: u16) -> PackedStorePointer {
+    fn alloc_var(&mut self, ty: Self::Type, idx: u16) -> PackedPtr {
         let size = self.data.len() as u32;
 
         self.data.push(InternalStoreElement::Var { ty, var: idx });
 
-        PackedStorePointer::expr(size)
+        PackedPtr::expr(size)
     }
 
-    fn alloc_conv(&mut self, l: PackedStorePointer, r: PackedStorePointer) -> PackedStorePointer {
+    fn alloc_conv(&mut self, l: PackedPtr, r: PackedPtr) -> PackedPtr {
         let size = self.data.len() as u32;
 
         self.data.push(InternalStoreElement::Conv { e1: l, e2: r });
 
-        PackedStorePointer::conv(size)
+        PackedPtr::conv(size)
     }
 
     fn clear(&mut self) {
@@ -401,7 +400,7 @@ impl Store for Store_ {
         self.args.clear();
     }
 
-    fn get_type_of_expr(&self, ptr: StorePointer) -> Option<&Self::Type> {
+    fn get_type_of_expr(&self, ptr: Ptr) -> Option<&Self::Type> {
         let element = self.data.get(ptr.get_idx())?;
 
         match element {
@@ -411,7 +410,7 @@ impl Store for Store_ {
         }
     }
 
-    fn get_element(&self, ptr: StorePointer) -> Option<StoreElementRef<Self::Type>> {
+    fn get_element(&self, ptr: Ptr) -> Option<StoreElementRef<Self::Type>> {
         let element = self.data.get(ptr.get_idx())?;
 
         match element {
@@ -436,7 +435,7 @@ impl Store for Store_ {
 
     fn get<'a, T: TryFrom<StoreElementRef<'a, Self::Type>, Error = Kind>>(
         &'a self,
-        ptr: StorePointer,
+        ptr: Ptr,
     ) -> TResult<T> {
         let element = self.get_element(ptr).ok_or(Kind::InvalidStoreIndex)?;
 

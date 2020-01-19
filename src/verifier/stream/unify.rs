@@ -1,8 +1,6 @@
 use crate::error::Kind;
-use crate::verifier::state::store::StorePointer;
-use crate::verifier::state::store::StoreTerm;
-use crate::verifier::Type;
-use crate::verifier::{state::State, state::Store, Table};
+use crate::verifier::state::{store, Ptr, State, Store};
+use crate::verifier::{Table, Type};
 use crate::TResult;
 use core::ops::Range;
 use std::convert::TryInto;
@@ -70,7 +68,7 @@ impl<S: Store> Unify for State<S> {
     fn term(&mut self, idx: u32, save: bool) -> TResult {
         let ptr = self.unify_stack.pop().ok_or(Kind::UnifyStackUnderflow)?;
 
-        let term: StoreTerm<_> = self.store.get(ptr.to_ptr())?;
+        let term: store::Term<_> = self.store.get(ptr.to_ptr())?;
 
         if *term.id != idx {
             return Err(Kind::UnifyTermFailure);
@@ -162,25 +160,13 @@ impl<S: Store> Unify for State<S> {
 }
 
 pub trait Run<S: Store> {
-    fn run<T>(
-        &mut self,
-        stream: Range<usize>,
-        table: &T,
-        mode: Mode,
-        target: StorePointer,
-    ) -> TResult
+    fn run<T>(&mut self, stream: Range<usize>, table: &T, mode: Mode, target: Ptr) -> TResult
     where
         T: Table<Type = S::Type>;
 }
 
 impl<S: Store> Run<S> for State<S> {
-    fn run<T>(
-        &mut self,
-        stream: Range<usize>,
-        table: &T,
-        mode: Mode,
-        target: StorePointer,
-    ) -> TResult
+    fn run<T>(&mut self, stream: Range<usize>, table: &T, mode: Mode, target: Ptr) -> TResult
     where
         T: Table<Type = S::Type>,
     {
@@ -207,7 +193,7 @@ impl<S: Store> Run<S> for State<S> {
 pub struct Stepper {
     started: bool,
     mode: Mode,
-    target: StorePointer,
+    target: Ptr,
     stream: Range<usize>,
 }
 
@@ -218,7 +204,7 @@ pub enum Action {
 }
 
 impl Stepper {
-    pub fn new(mode: Mode, target: StorePointer, stream: Range<usize>) -> Stepper {
+    pub fn new(mode: Mode, target: Ptr, stream: Range<usize>) -> Stepper {
         Stepper {
             started: false,
             mode,

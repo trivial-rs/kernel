@@ -1,7 +1,7 @@
 use crate::error::Kind;
+use crate::verifier::state::store;
+use crate::verifier::state::store::Ptr;
 use crate::verifier::state::store::StoreConv;
-use crate::verifier::state::store::StorePointer;
-use crate::verifier::state::store::StoreTerm;
 use crate::verifier::state::Store;
 use crate::verifier::stream;
 use crate::verifier::{Sort, State, Table, Term, Theorem, Type};
@@ -10,8 +10,8 @@ use crate::TResult;
 use crate::opcode;
 
 pub enum FinalizeState {
-    Theorem(StorePointer, bool),
-    Unfold(StorePointer, StorePointer),
+    Theorem(Ptr, bool),
+    Unfold(Ptr, Ptr),
 }
 
 pub trait Proof<T>
@@ -35,7 +35,7 @@ where
         save: bool,
     ) -> TResult<(stream::unify::Stepper, FinalizeState)>;
 
-    fn theorem_end(&mut self, target: StorePointer, save: bool) -> TResult;
+    fn theorem_end(&mut self, target: Ptr, save: bool) -> TResult;
 
     fn hyp(&mut self, table: &T) -> TResult;
 
@@ -49,7 +49,7 @@ where
 
     fn unfold_start(&mut self, table: &T) -> TResult<(stream::unify::Stepper, FinalizeState)>;
 
-    fn unfold_end(&mut self, t_ptr: StorePointer, e: StorePointer) -> TResult;
+    fn unfold_end(&mut self, t_ptr: Ptr, e: Ptr) -> TResult;
 
     fn unfold(&mut self, table: &T) -> TResult;
 
@@ -382,7 +382,7 @@ where
         Ok((stepper, FinalizeState::Theorem(target, save)))
     }
 
-    fn theorem_end(&mut self, target: StorePointer, save: bool) -> TResult {
+    fn theorem_end(&mut self, target: Ptr, save: bool) -> TResult {
         let proof = target.to_proof();
 
         self.proof_stack.push(proof);
@@ -495,8 +495,8 @@ where
             .as_expr()
             .ok_or(Kind::InvalidStoreExpr)?;
 
-        let e1: StoreTerm<_> = self.store.get(e1)?;
-        let e2: StoreTerm<_> = self.store.get(e2)?;
+        let e1: store::Term<_> = self.store.get(e1)?;
+        let e2: store::Term<_> = self.store.get(e2)?;
 
         if e1.id != e2.id {
             return Err(Kind::CongUnifyError);
@@ -525,7 +525,7 @@ where
             .as_expr()
             .ok_or(Kind::InvalidStoreType)?;
 
-        let t: StoreTerm<_> = self.store.get(t_ptr)?;
+        let t: store::Term<_> = self.store.get(t_ptr)?;
 
         let term = table.get_term(*t.id).ok_or(Kind::InvalidTerm)?;
 
@@ -543,7 +543,7 @@ where
         Ok((stepper, FinalizeState::Unfold(t_ptr, e)))
     }
 
-    fn unfold_end(&mut self, t_ptr: StorePointer, e: StorePointer) -> TResult {
+    fn unfold_end(&mut self, t_ptr: Ptr, e: Ptr) -> TResult {
         let t_prime = self
             .proof_stack
             .pop()
@@ -583,7 +583,7 @@ where
             .as_expr()
             .ok_or(Kind::InvalidStoreType)?;
 
-        let t: StoreTerm<_> = self.store.get(t_ptr)?;
+        let t: store::Term<_> = self.store.get(t_ptr)?;
 
         let term = table.get_term(*t.id).ok_or(Kind::InvalidTerm)?;
 
@@ -647,7 +647,7 @@ where
     }
 
     fn conv_ref(&mut self, idx: u32) -> TResult {
-        let x: StoreConv = self.store.get(StorePointer(idx))?;
+        let x: StoreConv = self.store.get(Ptr(idx))?;
 
         let e1 = self
             .proof_stack
@@ -726,21 +726,21 @@ pub enum Continue {
     Normal,
     UnifyTheorem {
         stepper: stream::unify::Stepper,
-        target: StorePointer,
+        target: Ptr,
         save: bool,
     },
     ContinueTheorem {
-        target: StorePointer,
+        target: Ptr,
         save: bool,
     },
     UnifyUnfold {
         stepper: stream::unify::Stepper,
-        t_ptr: StorePointer,
-        e: StorePointer,
+        t_ptr: Ptr,
+        e: Ptr,
     },
     ContinueUnfold {
-        t_ptr: StorePointer,
-        e: StorePointer,
+        t_ptr: Ptr,
+        e: Ptr,
     },
 }
 

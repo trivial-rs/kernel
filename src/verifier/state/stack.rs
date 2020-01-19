@@ -1,9 +1,9 @@
-use super::store::{PackedStorePointer, Store};
-use crate::error::{Kind, TResult};
+use super::{PackedPtr, Store};
+use crate::{error::Kind, TResult};
 
 #[derive(Debug, Default)]
 pub struct Stack {
-    data: Vec<PackedStorePointer>,
+    data: Vec<PackedPtr>,
 }
 
 impl Stack {
@@ -11,7 +11,7 @@ impl Stack {
         DisplayStack(self, store)
     }
 
-    pub fn push(&mut self, idx: PackedStorePointer) {
+    pub fn push(&mut self, idx: PackedPtr) {
         self.data.push(idx);
     }
 
@@ -19,7 +19,7 @@ impl Stack {
         self.data.clear();
     }
 
-    pub fn pop(&mut self) -> Option<PackedStorePointer> {
+    pub fn pop(&mut self) -> Option<PackedPtr> {
         self.data.pop()
     }
 
@@ -27,7 +27,7 @@ impl Stack {
         self.data.len()
     }
 
-    pub fn get_last(&self, nr: usize) -> TResult<&[PackedStorePointer]> {
+    pub fn get_last(&self, nr: usize) -> TResult<&[PackedPtr]> {
         let len = self.data.len();
         self.data
             .as_slice()

@@ -1,8 +1,8 @@
-use super::store::{PackedStorePointer, Store};
+use super::{PackedPtr, Store};
 
 #[derive(Debug, Default)]
 pub struct Heap {
-    data: Vec<PackedStorePointer>,
+    data: Vec<PackedPtr>,
 }
 
 impl Heap {
@@ -14,7 +14,7 @@ impl Heap {
         self.data.clear();
     }
 
-    pub fn push(&mut self, idx: PackedStorePointer) {
+    pub fn push(&mut self, idx: PackedPtr) {
         self.data.push(idx);
     }
 
@@ -22,20 +22,20 @@ impl Heap {
         self.data.len()
     }
 
-    pub fn clone_from(&mut self, other: &[PackedStorePointer]) {
+    pub fn clone_from(&mut self, other: &[PackedPtr]) {
         self.data.clear();
         self.data.extend_from_slice(other);
     }
 
-    pub fn get(&self, idx: u32) -> Option<PackedStorePointer> {
+    pub fn get(&self, idx: u32) -> Option<PackedPtr> {
         self.data.get(idx as usize).copied()
     }
 
-    pub fn as_slice(&self) -> &[PackedStorePointer] {
+    pub fn as_slice(&self) -> &[PackedPtr] {
         &self.data
     }
 
-    pub fn extend(&mut self, ext: &[PackedStorePointer]) {
+    pub fn extend(&mut self, ext: &[PackedPtr]) {
         self.data.extend_from_slice(ext);
     }
 }

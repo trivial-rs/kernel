@@ -4,7 +4,7 @@ pub mod store;
 
 pub use heap::Heap;
 pub use stack::Stack;
-pub use store::Store;
+pub use store::{PackedPtr, Ptr, Store};
 
 #[derive(Debug, Default)]
 pub struct State<S: Store> {
