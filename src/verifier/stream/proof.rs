@@ -1,6 +1,5 @@
 use crate::error::Kind;
 use crate::verifier::state::store::StoreConv;
-use crate::verifier::state::store::StoreElement;
 use crate::verifier::state::store::StorePointer;
 use crate::verifier::state::store::StoreTerm;
 use crate::verifier::state::Store;
@@ -177,12 +176,7 @@ where
 
         self.next_bv *= 2;
 
-        let var = StoreElement::Var {
-            ty,
-            var: self.proof_heap.len() as u16,
-        };
-
-        let ptr = self.store.push(var);
+        let ptr = self.store.alloc_var(ty, self.proof_heap.len() as u16);
 
         self.proof_stack.push(ptr);
         self.proof_heap.push(ptr);
@@ -691,12 +685,7 @@ where
             .as_expr()
             .ok_or(Kind::InvalidStoreExpr)?;
 
-        let conv = StoreElement::Conv {
-            e1: e1.to_expr(),
-            e2: e2.to_expr(),
-        };
-
-        let ptr = self.store.push(conv);
+        let ptr = self.store.alloc_conv(e1.to_expr(), e2.to_expr());
         self.proof_heap.push(ptr);
 
         Ok(())

@@ -31,7 +31,7 @@ where
 }
 
 fn allocate_var<S: Store>(proof_heap: &mut Heap, store: &mut S, x: (usize, &S::Type)) {
-    let ptr = store.push_var(x.1, x.0 as u16);
+    let ptr = store.alloc_var(*x.1, x.0 as u16);
     proof_heap.push(ptr);
 }
 

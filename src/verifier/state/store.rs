@@ -285,9 +285,9 @@ pub trait Store {
         def: bool,
     ) -> TResult<PackedStorePointer>;
 
-    fn push<'b>(&mut self, element: StoreElement<'b, Self::Type>) -> PackedStorePointer;
+    fn alloc_var(&mut self, ty: Self::Type, idx: u16) -> PackedStorePointer;
 
-    fn push_var(&mut self, ty: &Self::Type, idx: u16) -> PackedStorePointer;
+    fn alloc_conv(&mut self, l: PackedStorePointer, r: PackedStorePointer) -> PackedStorePointer;
 
     fn clear(&mut self);
 
@@ -380,38 +380,20 @@ impl Store for Store_ {
         Ok(PackedStorePointer::expr(size))
     }
 
-    fn push<'b>(&mut self, element: StoreElement<'b, Self::Type>) -> PackedStorePointer {
+    fn alloc_var(&mut self, ty: Self::Type, idx: u16) -> PackedStorePointer {
         let size = self.data.len() as u32;
 
-        match element {
-            StoreElement::Var { ty, var } => {
-                self.data.push(InternalStoreElement::Var { ty, var });
-            }
-            StoreElement::Term { ty, id, args } => {
-                let offset = self.args.len();
-                self.args.extend_from_slice(args);
-
-                let ise = InternalStoreElement::Term {
-                    ty,
-                    num_args: args.len() as u16,
-                    id,
-                    ptr_args: offset,
-                };
-
-                self.data.push(ise);
-            }
-            StoreElement::Conv { e1, e2 } => {
-                self.data.push(InternalStoreElement::Conv { e1, e2 });
-            }
-        }
+        self.data.push(InternalStoreElement::Var { ty, var: idx });
 
         PackedStorePointer::expr(size)
     }
 
-    fn push_var(&mut self, ty: &Self::Type, idx: u16) -> PackedStorePointer {
-        let var = StoreElement::Var { ty: *ty, var: idx };
+    fn alloc_conv(&mut self, l: PackedStorePointer, r: PackedStorePointer) -> PackedStorePointer {
+        let size = self.data.len() as u32;
 
-        self.push(var)
+        self.data.push(InternalStoreElement::Conv { e1: l, e2: r });
+
+        PackedStorePointer::conv(size)
     }
 
     fn clear(&mut self) {
