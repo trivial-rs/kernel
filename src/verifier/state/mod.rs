@@ -4,23 +4,23 @@ pub mod store;
 
 pub use heap::Heap;
 pub use stack::Stack;
-pub(crate) use store::{Store, Store_};
+pub use store::{Store, Store_};
 
 #[derive(Debug, Default)]
-pub struct State {
+pub struct State<S: Store> {
     pub(crate) proof_stack: Stack,
     pub(crate) proof_heap: Heap,
     pub(crate) unify_stack: Stack,
     pub(crate) unify_heap: Heap,
     pub(crate) hyp_stack: Stack,
-    pub(crate) store: Store_,
+    pub(crate) store: S,
     pub(crate) next_bv: u64,
     pub(crate) current_term: u32,
     pub(crate) current_theorem: u32,
     pub(crate) current_sort: u8,
 }
 
-impl State {
+impl<S: Store> State<S> {
     pub fn get_proof_stack(&self) -> &Stack {
         &self.proof_stack
     }
@@ -64,7 +64,7 @@ impl State {
 
 use std::fmt::{self, Display, Formatter};
 
-impl Display for State {
+impl<S: Store> Display for State<S> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         writeln!(
             f,

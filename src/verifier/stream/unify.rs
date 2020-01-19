@@ -54,7 +54,7 @@ pub trait Unify {
     }
 }
 
-impl Unify for State {
+impl<S: Store> Unify for State<S> {
     fn end(&mut self, mode: Mode) -> TResult {
         if mode == Mode::ThmEnd && self.hyp_stack.len() != 0 {
             return Err(Kind::UnfinishedHypStack);
@@ -161,7 +161,7 @@ impl Unify for State {
     }
 }
 
-pub trait Run {
+pub trait Run<S: Store> {
     fn run<T>(
         &mut self,
         stream: Range<usize>,
@@ -170,10 +170,10 @@ pub trait Run {
         target: StorePointer,
     ) -> TResult
     where
-        T: Table;
+        T: Table<Type = S::Type>;
 }
 
-impl Run for State {
+impl<S: Store> Run<S> for State<S> {
     fn run<T>(
         &mut self,
         stream: Range<usize>,
@@ -182,7 +182,7 @@ impl Run for State {
         target: StorePointer,
     ) -> TResult
     where
-        T: Table,
+        T: Table<Type = S::Type>,
     {
         self.unify_stack.clear();
         self.unify_stack.push(target.to_expr());
@@ -227,7 +227,11 @@ impl Stepper {
         }
     }
 
-    pub fn step<T: Table>(&mut self, state: &mut State, table: &T) -> TResult<Option<Action>> {
+    pub fn step<S: Store, T: Table<Type = S::Type>>(
+        &mut self,
+        state: &mut State<S>,
+        table: &T,
+    ) -> TResult<Option<Action>> {
         if !self.started {
             state.unify_stack.clear();
             state.unify_stack.push(self.target.to_expr());

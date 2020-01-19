@@ -12,7 +12,7 @@ impl From<u64> for Type_ {
     }
 }
 
-pub trait Type {
+pub trait Type: Copy {
     fn new(sort_idx: u8, deps: u64, bound: bool) -> Self;
 
     fn is_bound(&self) -> bool;

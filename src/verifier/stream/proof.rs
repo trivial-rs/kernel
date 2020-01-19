@@ -142,9 +142,9 @@ where
     }
 }
 
-impl<T> Proof<T> for State
+impl<T, S: Store> Proof<T> for State<S>
 where
-    T: Table<Type = Type_>,
+    T: Table<Type = S::Type>,
 {
     fn end(&mut self) -> TResult {
         // todo: make this check the stack?
@@ -706,18 +706,18 @@ where
 
 use std::convert::TryInto;
 
-pub trait Run {
+pub trait Run<SS: Store> {
     fn run<T: Table, S>(&mut self, table: &T, is_definition: bool, stream: S) -> TResult
     where
-        T: Table<Type = Type_>,
+        T: Table<Type = SS::Type>,
         S: IntoIterator,
         S::Item: TryInto<opcode::Command<opcode::Proof>>;
 }
 
-impl Run for State {
+impl<SS: Store> Run<SS> for State<SS> {
     fn run<T: Table, S>(&mut self, table: &T, is_definition: bool, stream: S) -> TResult
     where
-        T: Table<Type = Type_>,
+        T: Table<Type = SS::Type>,
         S: IntoIterator,
         S::Item: TryInto<opcode::Command<opcode::Proof>>,
     {
@@ -791,9 +791,9 @@ where
         self.stream
     }
 
-    pub fn step<T: Table<Type = Type_>>(
+    pub fn step<SS: Store, T: Table<Type = SS::Type>>(
         &mut self,
-        state: &mut State,
+        state: &mut State<SS>,
         table: &T,
     ) -> TResult<Option<Action>> {
         let (next_state, ret) = match &mut self.con {

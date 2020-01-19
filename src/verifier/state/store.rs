@@ -281,6 +281,8 @@ pub trait Store {
 
     fn push<'b>(&mut self, element: StoreElement<'b>) -> PackedStorePointer;
 
+    fn push_var(&mut self, ty: &Self::Type, idx: u16) -> PackedStorePointer;
+
     fn clear(&mut self);
 
     fn get_type_of_expr(&self, ptr: StorePointer) -> Option<&Self::Type>;
@@ -398,6 +400,12 @@ impl Store for Store_ {
         }
 
         PackedStorePointer::expr(size)
+    }
+
+    fn push_var(&mut self, ty: &Self::Type, idx: u16) -> PackedStorePointer {
+        let var = StoreElement::Var { ty: *ty, var: idx };
+
+        self.push(var)
     }
 
     fn clear(&mut self) {

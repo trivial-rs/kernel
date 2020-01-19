@@ -31,22 +31,12 @@ where
     fn put_proof_stream(&mut self, proofs: Self::ProofStream);
 }
 
-fn allocate_var<S: Store>(proof_heap: &mut Heap, store: &mut S, x: (usize, &Type_)) {
-    let var = StoreElement::Var {
-        ty: *x.1,
-        var: x.0 as u16,
-    };
-
-    let ptr = store.push(var);
+fn allocate_var<S: Store>(proof_heap: &mut Heap, store: &mut S, x: (usize, &S::Type)) {
+    let ptr = store.push_var(x.1, x.0 as u16);
     proof_heap.push(ptr);
 }
 
-fn binder_check<T: Table<Type = Type_>>(
-    table: &T,
-    ty: &Type_,
-    current_sort: u8,
-    bv: &mut u64,
-) -> TResult {
+fn binder_check<T: Table>(table: &T, ty: &T::Type, current_sort: u8, bv: &mut u64) -> TResult {
     let idx = ty.get_sort_idx();
 
     if idx >= current_sort {
@@ -80,20 +70,20 @@ pub trait Statement {
 }
 
 #[derive(Debug)]
-pub enum TermDef<S> {
+pub enum TermDef<S, Ty> {
     Start {
         idx: u32,
         stream: S,
     },
     RunProof {
         stepper: stream::proof::Stepper<S>,
-        ret_type: Type_,
+        ret_type: Ty,
         nr_args: usize,
         commands: Range<usize>,
     },
     ProofDone {
         stream: S,
-        ret_type: Type_,
+        ret_type: Ty,
         commands: Range<usize>,
         nr_args: usize,
     },
@@ -120,11 +110,12 @@ pub enum TermDefAction {
     UnifyDone,
 }
 
-impl<S> TermDef<S>
+impl<S, Ty> TermDef<S, Ty>
 where
     S: Iterator<Item = opcode::Command<opcode::Proof>>,
+    Ty: Type,
 {
-    pub fn new(idx: u32, stream: S) -> TermDef<S> {
+    pub fn new(idx: u32, stream: S) -> TermDef<S, Ty> {
         TermDef::Start { idx, stream }
     }
 
@@ -142,9 +133,9 @@ where
         }
     }
 
-    pub fn step<T: Table<Type = Type_>>(
+    pub fn step<SS: Store<Type = Ty>, T: Table<Type = SS::Type>>(
         &mut self,
-        state: &mut State,
+        state: &mut State<SS>,
         table: &T,
     ) -> TResult<TermDefAction> {
         let old = std::mem::replace(self, Self::Dummy);
@@ -373,9 +364,9 @@ where
         }
     }
 
-    pub fn step<T: Table<Type = Type_>>(
+    pub fn step<SS: Store, T: Table<Type = SS::Type>>(
         &mut self,
-        state: &mut State,
+        state: &mut State<SS>,
         table: &T,
     ) -> TResult<AxiomThmAction> {
         let old = std::mem::replace(self, Self::Dummy);
@@ -523,20 +514,20 @@ where
 }
 
 #[derive(Debug)]
-enum StepState<S> {
+enum StepState<S, Ty> {
     Normal,
-    TermDef(TermDef<S>),
+    TermDef(TermDef<S, Ty>),
     AxiomThm(AxiomThm<S>),
 }
 
 #[derive(Debug)]
-pub struct Stepper<S>
+pub struct Stepper<S, Ty>
 where
     S: StatementStream + Iterator,
     <S as Iterator>::Item: TryInto<Opcode>,
 {
     stream: S,
-    state: StepState<S::ProofStream>,
+    state: StepState<S::ProofStream, Ty>,
 }
 
 #[derive(Debug)]
@@ -551,21 +542,22 @@ pub enum Action {
     Sort,
 }
 
-impl<S> Stepper<S>
+impl<S, Ty> Stepper<S, Ty>
 where
     S: StatementStream + Iterator,
     <S as Iterator>::Item: TryInto<Opcode>,
+    Ty: Type,
 {
-    pub fn new(stream: S) -> Stepper<S> {
+    pub fn new(stream: S) -> Stepper<S, Ty> {
         Stepper {
             stream,
             state: StepState::Normal,
         }
     }
 
-    pub fn step<T: Table<Type = Type_>>(
+    pub fn step<SS: Store<Type = Ty>, T: Table<Type = SS::Type>>(
         &mut self,
-        state: &mut State,
+        state: &mut State<SS>,
         table: &T,
     ) -> TResult<Option<Action>> {
         let old = std::mem::replace(&mut self.state, StepState::Normal);
@@ -610,7 +602,7 @@ where
         ret
     }
 
-    fn normal(&mut self, state: &mut State) -> TResult<Option<Action>> {
+    fn normal<SS: Store<Type = Ty>>(&mut self, state: &mut State<SS>) -> TResult<Option<Action>> {
         if let Some(x) = self.stream.next() {
             let x = x.try_into().map_err(|_| Kind::UnknownCommand)?;
 
