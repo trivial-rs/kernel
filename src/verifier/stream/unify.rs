@@ -70,7 +70,7 @@ impl<S: Store> Unify for State<S> {
     fn term(&mut self, idx: u32, save: bool) -> TResult {
         let ptr = self.unify_stack.pop().ok_or(Kind::UnifyStackUnderflow)?;
 
-        let term: StoreTerm = self.store.get(ptr.to_ptr())?;
+        let term: StoreTerm<_> = self.store.get(ptr.to_ptr())?;
 
         if *term.id != idx {
             return Err(Kind::UnifyTermFailure);
@@ -107,7 +107,7 @@ impl<S: Store> Unify for State<S> {
             .ok_or(Kind::InvalidStackType)?;
 
         use crate::verifier::state::store::StoreVar;
-        let var: StoreVar = self.store.get(e)?;
+        let var: StoreVar<_> = self.store.get(e)?;
         let ty = var.ty;
 
         if !(ty.is_bound() && ty.get_sort_idx() == (sort as u8)) {

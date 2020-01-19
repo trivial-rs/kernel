@@ -4,7 +4,7 @@ pub mod store;
 
 pub use heap::Heap;
 pub use stack::Stack;
-pub use store::{Store, Store_};
+pub use store::Store;
 
 #[derive(Debug, Default)]
 pub struct State<S: Store> {

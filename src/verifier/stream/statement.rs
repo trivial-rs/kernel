@@ -1,10 +1,9 @@
 use crate::error::Kind;
-use crate::verifier::state::store::StoreElement;
 use crate::verifier::state::Heap;
 use crate::verifier::state::State;
 use crate::verifier::state::Store;
 use crate::verifier::stream;
-use crate::verifier::{Sort, Table, Term, Theorem, Type, Type_};
+use crate::verifier::{Sort, Table, Term, Theorem, Type};
 use crate::TResult;
 
 use core::ops::Range;

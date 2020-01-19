@@ -114,13 +114,13 @@ impl StorePointer {
 }
 
 #[derive(Debug)]
-pub enum StoreElement<'a> {
+pub enum StoreElement<'a, Ty> {
     Var {
-        ty: Type_,
+        ty: Ty,
         var: u16,
     },
     Term {
-        ty: Type_,
+        ty: Ty,
         id: u32,
         args: &'a [PackedStorePointer],
     },
@@ -132,13 +132,13 @@ pub enum StoreElement<'a> {
 }
 
 #[derive(Debug)]
-pub enum StoreElementRef<'a> {
+pub enum StoreElementRef<'a, Ty> {
     Var {
-        ty: &'a Type_,
+        ty: &'a Ty,
         var: &'a u16,
     },
     Term {
-        ty: &'a Type_,
+        ty: &'a Ty,
         id: &'a u32,
         args: &'a [PackedStorePointer],
     },
@@ -149,15 +149,21 @@ pub enum StoreElementRef<'a> {
     },
 }
 
-impl<'a> StoreElementRef<'a> {
-    pub fn to_display<'b, S: Store>(&'b self, store: &'b S) -> DisplayElement<'a, 'b, S> {
+impl<'a, Ty: Type> StoreElementRef<'a, Ty> {
+    pub fn to_display<'b, S: Store<Type = Ty>>(
+        &'b self,
+        store: &'b S,
+    ) -> DisplayElement<'a, 'b, Ty, S> {
         DisplayElement(self, store)
     }
 }
 
-pub struct DisplayElement<'a, 'b, S: Store>(pub &'b StoreElementRef<'a>, pub &'b S);
+pub struct DisplayElement<'a, 'b, Ty: Type, S: Store<Type = Ty>>(
+    pub &'b StoreElementRef<'a, Ty>,
+    pub &'b S,
+);
 
-impl<'a, 'b, S: Store> Display for DisplayElement<'a, 'b, S> {
+impl<'a, 'b, Ty: Type, S: Store<Type = Ty>> Display for DisplayElement<'a, 'b, Ty, S> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self.0 {
             StoreElementRef::Var { var, .. } => {
@@ -182,8 +188,8 @@ impl<'a, 'b, S: Store> Display for DisplayElement<'a, 'b, S> {
 }
 
 #[derive(Debug)]
-pub struct StoreTerm<'a> {
-    pub ty: &'a Type_,
+pub struct StoreTerm<'a, Ty> {
+    pub ty: &'a Ty,
     pub id: &'a u32,
     pub args: &'a [PackedStorePointer],
 }
@@ -191,10 +197,10 @@ pub struct StoreTerm<'a> {
 use std::convert::TryFrom;
 use std::convert::TryInto;
 
-impl<'a> TryFrom<StoreElementRef<'a>> for StoreTerm<'a> {
+impl<'a, Ty> TryFrom<StoreElementRef<'a, Ty>> for StoreTerm<'a, Ty> {
     type Error = Kind;
 
-    fn try_from(element: StoreElementRef<'a>) -> Result<Self, Self::Error> {
+    fn try_from(element: StoreElementRef<'a, Ty>) -> Result<Self, Self::Error> {
         if let StoreElementRef::Term { ty, id, args } = element {
             Ok(StoreTerm { ty, id, args })
         } else {
@@ -209,10 +215,10 @@ pub struct StoreConv {
     pub e2: PackedStorePointer,
 }
 
-impl<'a> TryFrom<StoreElementRef<'a>> for StoreConv {
+impl<'a, Ty> TryFrom<StoreElementRef<'a, Ty>> for StoreConv {
     type Error = Kind;
 
-    fn try_from(element: StoreElementRef<'a>) -> Result<Self, Self::Error> {
+    fn try_from(element: StoreElementRef<'a, Ty>) -> Result<Self, Self::Error> {
         if let StoreElementRef::Conv { e1, e2 } = element {
             Ok(StoreConv { e1: *e1, e2: *e2 })
         } else {
@@ -222,15 +228,15 @@ impl<'a> TryFrom<StoreElementRef<'a>> for StoreConv {
 }
 
 #[derive(Debug)]
-pub struct StoreVar {
-    pub ty: Type_,
+pub struct StoreVar<Ty> {
+    pub ty: Ty,
     pub var: u16,
 }
 
-impl<'a> TryFrom<StoreElementRef<'a>> for StoreVar {
+impl<'a, Ty: Copy> TryFrom<StoreElementRef<'a, Ty>> for StoreVar<Ty> {
     type Error = Kind;
 
-    fn try_from(element: StoreElementRef<'a>) -> Result<Self, Self::Error> {
+    fn try_from(element: StoreElementRef<'a, Ty>) -> Result<Self, Self::Error> {
         if let StoreElementRef::Var { ty, var } = element {
             Ok(StoreVar { ty: *ty, var: *var })
         } else {
@@ -279,7 +285,7 @@ pub trait Store {
         def: bool,
     ) -> TResult<PackedStorePointer>;
 
-    fn push<'b>(&mut self, element: StoreElement<'b>) -> PackedStorePointer;
+    fn push<'b>(&mut self, element: StoreElement<'b, Self::Type>) -> PackedStorePointer;
 
     fn push_var(&mut self, ty: &Self::Type, idx: u16) -> PackedStorePointer;
 
@@ -287,9 +293,9 @@ pub trait Store {
 
     fn get_type_of_expr(&self, ptr: StorePointer) -> Option<&Self::Type>;
 
-    fn get_element(&self, ptr: StorePointer) -> Option<StoreElementRef>;
+    fn get_element(&self, ptr: StorePointer) -> Option<StoreElementRef<Self::Type>>;
 
-    fn get<'a, T: TryFrom<StoreElementRef<'a>, Error = Kind>>(
+    fn get<'a, T: TryFrom<StoreElementRef<'a, Self::Type>, Error = Kind>>(
         &'a self,
         ptr: StorePointer,
     ) -> TResult<T>;
@@ -374,7 +380,7 @@ impl Store for Store_ {
         Ok(PackedStorePointer::expr(size))
     }
 
-    fn push<'b>(&mut self, element: StoreElement<'b>) -> PackedStorePointer {
+    fn push<'b>(&mut self, element: StoreElement<'b, Self::Type>) -> PackedStorePointer {
         let size = self.data.len() as u32;
 
         match element {
@@ -423,7 +429,7 @@ impl Store for Store_ {
         }
     }
 
-    fn get_element(&self, ptr: StorePointer) -> Option<StoreElementRef> {
+    fn get_element(&self, ptr: StorePointer) -> Option<StoreElementRef<Self::Type>> {
         let element = self.data.get(ptr.get_idx())?;
 
         match element {
@@ -446,7 +452,7 @@ impl Store for Store_ {
         }
     }
 
-    fn get<'a, T: TryFrom<StoreElementRef<'a>, Error = Kind>>(
+    fn get<'a, T: TryFrom<StoreElementRef<'a, Self::Type>, Error = Kind>>(
         &'a self,
         ptr: StorePointer,
     ) -> TResult<T> {

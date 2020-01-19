@@ -5,8 +5,7 @@ use crate::verifier::state::store::StorePointer;
 use crate::verifier::state::store::StoreTerm;
 use crate::verifier::state::Store;
 use crate::verifier::stream;
-use crate::verifier::Type;
-use crate::verifier::{Sort, State, Table, Term, Theorem, Type_};
+use crate::verifier::{Sort, State, Table, Term, Theorem, Type};
 use crate::TResult;
 
 use crate::opcode;
@@ -502,8 +501,8 @@ where
             .as_expr()
             .ok_or(Kind::InvalidStoreExpr)?;
 
-        let e1: StoreTerm = self.store.get(e1)?;
-        let e2: StoreTerm = self.store.get(e2)?;
+        let e1: StoreTerm<_> = self.store.get(e1)?;
+        let e2: StoreTerm<_> = self.store.get(e2)?;
 
         if e1.id != e2.id {
             return Err(Kind::CongUnifyError);
@@ -532,7 +531,7 @@ where
             .as_expr()
             .ok_or(Kind::InvalidStoreType)?;
 
-        let t: StoreTerm = self.store.get(t_ptr)?;
+        let t: StoreTerm<_> = self.store.get(t_ptr)?;
 
         let term = table.get_term(*t.id).ok_or(Kind::InvalidTerm)?;
 
@@ -590,7 +589,7 @@ where
             .as_expr()
             .ok_or(Kind::InvalidStoreType)?;
 
-        let t: StoreTerm = self.store.get(t_ptr)?;
+        let t: StoreTerm<_> = self.store.get(t_ptr)?;
 
         let term = table.get_term(*t.id).ok_or(Kind::InvalidTerm)?;
 
