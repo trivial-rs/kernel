@@ -1,3 +1,5 @@
+use crate::verifier::Type;
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct PackedStorePointer(u32);
 
@@ -108,63 +110,6 @@ impl StorePointer {
     #[inline(always)]
     pub fn get_idx(self) -> usize {
         self.0 as usize
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct Type(pub u64);
-
-impl From<u64> for Type {
-    #[inline(always)]
-    fn from(value: u64) -> Type {
-        Type(value)
-    }
-}
-
-impl Type {
-    #[inline(always)]
-    pub fn new(sort_idx: u8, deps: u64, bound: bool) -> Type {
-        if bound {
-            Type((((sort_idx & 0x7F) as u64) << 56) | deps | (1 << 63))
-        } else {
-            Type((((sort_idx & 0x7F) as u64) << 56) | deps)
-        }
-    }
-
-    #[inline(always)]
-    pub fn is_bound(self) -> bool {
-        self.0 & (1u64 << 63) != 0
-    }
-
-    #[inline(always)]
-    pub fn depends_on(self, t: u8) -> bool {
-        self.0 & (1u64 << t) != 0
-    }
-
-    #[inline(always)]
-    pub fn depends_on_full(self, other: u64) -> bool {
-        (self.get_deps() & other) != 0
-    }
-
-    #[inline(always)]
-    pub fn get_deps(self) -> u64 {
-        self.0 & ((1u64 << 56) - 1)
-    }
-
-    #[inline(always)]
-    pub fn get_sort_idx(self) -> u8 {
-        ((self.0 >> 56) & 0x7F) as u8
-    }
-
-    #[inline(always)]
-    pub fn is_compatible_to(self, other: Self) -> bool {
-        let diff = self.0 ^ other.0;
-
-        let a = diff & !((1u64 << 56) - 1);
-        let b = a & !(1u64 << 63);
-        let c = self.0 & (1u64 << 63);
-
-        (a == 0) || ((b == 0) && (c != 0))
     }
 }
 

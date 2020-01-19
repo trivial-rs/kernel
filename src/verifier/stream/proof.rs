@@ -3,8 +3,8 @@ use crate::verifier::state::store::StoreConv;
 use crate::verifier::state::store::StoreElement;
 use crate::verifier::state::store::StorePointer;
 use crate::verifier::state::store::StoreTerm;
-use crate::verifier::state::store::Type;
 use crate::verifier::stream;
+use crate::verifier::Type;
 use crate::verifier::{Sort, State, Table, Term, Theorem};
 use crate::TResult;
 
