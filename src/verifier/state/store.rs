@@ -1,4 +1,4 @@
-use crate::verifier::Type;
+use crate::verifier::{Type, Type_};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct PackedStorePointer(u32);
@@ -56,16 +56,16 @@ impl PackedStorePointer {
         StorePointer(self.0 >> 2)
     }
 
-    pub fn to_display<'a>(&self, store: &'a Store) -> DisplayPackedStorePointer<'a> {
+    pub fn to_display<'a, S: Store>(&self, store: &'a S) -> DisplayPackedStorePointer<'a, S> {
         DisplayPackedStorePointer(*self, store)
     }
 }
 
 use std::fmt::{self, Display, Formatter};
 
-pub struct DisplayPackedStorePointer<'a>(PackedStorePointer, &'a Store);
+pub struct DisplayPackedStorePointer<'a, S: Store>(PackedStorePointer, &'a S);
 
-impl<'a> Display for DisplayPackedStorePointer<'a> {
+impl<'a, S: Store> Display for DisplayPackedStorePointer<'a, S> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}", self.0.to_ptr().0)
     }
@@ -116,11 +116,11 @@ impl StorePointer {
 #[derive(Debug)]
 pub enum StoreElement<'a> {
     Var {
-        ty: Type,
+        ty: Type_,
         var: u16,
     },
     Term {
-        ty: Type,
+        ty: Type_,
         id: u32,
         args: &'a [PackedStorePointer],
     },
@@ -134,11 +134,11 @@ pub enum StoreElement<'a> {
 #[derive(Debug)]
 pub enum StoreElementRef<'a> {
     Var {
-        ty: &'a Type,
+        ty: &'a Type_,
         var: &'a u16,
     },
     Term {
-        ty: &'a Type,
+        ty: &'a Type_,
         id: &'a u32,
         args: &'a [PackedStorePointer],
     },
@@ -150,14 +150,14 @@ pub enum StoreElementRef<'a> {
 }
 
 impl<'a> StoreElementRef<'a> {
-    pub fn to_display<'b>(&'b self, store: &'b Store) -> DisplayElement<'a, 'b> {
+    pub fn to_display<'b, S: Store>(&'b self, store: &'b S) -> DisplayElement<'a, 'b, S> {
         DisplayElement(self, store)
     }
 }
 
-pub struct DisplayElement<'a, 'b>(pub &'b StoreElementRef<'a>, pub &'b Store);
+pub struct DisplayElement<'a, 'b, S: Store>(pub &'b StoreElementRef<'a>, pub &'b S);
 
-impl<'a, 'b> Display for DisplayElement<'a, 'b> {
+impl<'a, 'b, S: Store> Display for DisplayElement<'a, 'b, S> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self.0 {
             StoreElementRef::Var { var, .. } => {
@@ -183,7 +183,7 @@ impl<'a, 'b> Display for DisplayElement<'a, 'b> {
 
 #[derive(Debug)]
 pub struct StoreTerm<'a> {
-    pub ty: &'a Type,
+    pub ty: &'a Type_,
     pub id: &'a u32,
     pub args: &'a [PackedStorePointer],
 }
@@ -223,7 +223,7 @@ impl<'a> TryFrom<StoreElementRef<'a>> for StoreConv {
 
 #[derive(Debug)]
 pub struct StoreVar {
-    pub ty: Type,
+    pub ty: Type_,
     pub var: u16,
 }
 
@@ -242,11 +242,11 @@ impl<'a> TryFrom<StoreElementRef<'a>> for StoreVar {
 #[derive(Debug)]
 enum InternalStoreElement {
     Var {
-        ty: Type,
+        ty: Type_,
         var: u16,
     },
     Term {
-        ty: Type,
+        ty: Type_,
         num_args: u16,
         id: u32,
         ptr_args: usize,
@@ -258,7 +258,7 @@ enum InternalStoreElement {
 }
 
 #[derive(Debug, Default)]
-pub struct Store {
+pub struct Store_ {
     data: Vec<InternalStoreElement>,
     args: Vec<PackedStorePointer>,
 }
@@ -266,13 +266,42 @@ pub struct Store {
 use crate::error::Kind;
 use crate::error::TResult;
 
-impl Store {
-    pub fn create_term(
+pub trait Store {
+    type Type: Type;
+
+    fn create_term(
         &mut self,
         id: u32,
         args: &[PackedStorePointer],
-        types: &[Type],
-        ret_type: Type,
+        types: &[Self::Type],
+        ret_type: &Self::Type,
+        sort: u8,
+        def: bool,
+    ) -> TResult<PackedStorePointer>;
+
+    fn push<'b>(&mut self, element: StoreElement<'b>) -> PackedStorePointer;
+
+    fn clear(&mut self);
+
+    fn get_type_of_expr(&self, ptr: StorePointer) -> Option<&Self::Type>;
+
+    fn get_element(&self, ptr: StorePointer) -> Option<StoreElementRef>;
+
+    fn get<'a, T: TryFrom<StoreElementRef<'a>, Error = Kind>>(
+        &'a self,
+        ptr: StorePointer,
+    ) -> TResult<T>;
+}
+
+impl Store for Store_ {
+    type Type = Type_;
+
+    fn create_term(
+        &mut self,
+        id: u32,
+        args: &[PackedStorePointer],
+        types: &[Type_],
+        ret_type: &Type_,
         sort: u8,
         def: bool,
     ) -> TResult<PackedStorePointer> {
@@ -286,7 +315,7 @@ impl Store {
 
             let ty = self.get_type_of_expr(arg).ok_or(Kind::InvalidStoreExpr)?;
 
-            if !ty.is_compatible_to(target_type) {
+            if !ty.is_compatible_to(&target_type) {
                 return Err(Kind::IncompatibleTypes);
             }
 
@@ -343,7 +372,7 @@ impl Store {
         Ok(PackedStorePointer::expr(size))
     }
 
-    pub fn push<'b>(&mut self, element: StoreElement<'b>) -> PackedStorePointer {
+    fn push<'b>(&mut self, element: StoreElement<'b>) -> PackedStorePointer {
         let size = self.data.len() as u32;
 
         match element {
@@ -371,22 +400,22 @@ impl Store {
         PackedStorePointer::expr(size)
     }
 
-    pub fn clear(&mut self) {
+    fn clear(&mut self) {
         self.data.clear();
         self.args.clear();
     }
 
-    pub fn get_type_of_expr(&self, ptr: StorePointer) -> Option<Type> {
+    fn get_type_of_expr(&self, ptr: StorePointer) -> Option<&Self::Type> {
         let element = self.data.get(ptr.get_idx())?;
 
         match element {
-            InternalStoreElement::Var { ty, .. } => Some(*ty),
-            InternalStoreElement::Term { ty, .. } => Some(*ty),
+            InternalStoreElement::Var { ty, .. } => Some(ty),
+            InternalStoreElement::Term { ty, .. } => Some(ty),
             _ => None,
         }
     }
 
-    pub fn get_element(&self, ptr: StorePointer) -> Option<StoreElementRef> {
+    fn get_element(&self, ptr: StorePointer) -> Option<StoreElementRef> {
         let element = self.data.get(ptr.get_idx())?;
 
         match element {
@@ -409,7 +438,7 @@ impl Store {
         }
     }
 
-    pub fn get<'a, T: TryFrom<StoreElementRef<'a>, Error = Kind>>(
+    fn get<'a, T: TryFrom<StoreElementRef<'a>, Error = Kind>>(
         &'a self,
         ptr: StorePointer,
     ) -> TResult<T> {

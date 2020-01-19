@@ -1,7 +1,8 @@
 use crate::error::Kind;
 use crate::verifier::state::store::StorePointer;
 use crate::verifier::state::store::StoreTerm;
-use crate::verifier::{state::State, Table};
+use crate::verifier::Type;
+use crate::verifier::{state::State, state::Store, Table};
 use crate::TResult;
 use core::ops::Range;
 use std::convert::TryInto;

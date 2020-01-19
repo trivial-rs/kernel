@@ -4,7 +4,7 @@ pub mod store;
 
 pub use heap::Heap;
 pub use stack::Stack;
-pub(crate) use store::Store;
+pub(crate) use store::{Store, Store_};
 
 #[derive(Debug, Default)]
 pub struct State {
@@ -13,7 +13,7 @@ pub struct State {
     pub(crate) unify_stack: Stack,
     pub(crate) unify_heap: Heap,
     pub(crate) hyp_stack: Stack,
-    pub(crate) store: Store,
+    pub(crate) store: Store_,
     pub(crate) next_bv: u64,
     pub(crate) current_term: u32,
     pub(crate) current_theorem: u32,

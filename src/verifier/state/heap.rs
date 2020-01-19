@@ -6,7 +6,7 @@ pub struct Heap {
 }
 
 impl Heap {
-    pub fn to_display<'a>(&'a self, store: &'a Store) -> DisplayHeap<'a> {
+    pub fn to_display<'a, S: Store>(&'a self, store: &'a S) -> DisplayHeap<'a, S> {
         DisplayHeap(self, store)
     }
 
@@ -42,9 +42,9 @@ impl Heap {
 
 use std::fmt::{self, Display, Formatter};
 
-pub struct DisplayHeap<'a>(&'a Heap, &'a Store);
+pub struct DisplayHeap<'a, S: Store>(&'a Heap, &'a S);
 
-impl<'a> Display for DisplayHeap<'a> {
+impl<'a, S: Store> Display for DisplayHeap<'a, S> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         for i in self.0.data.iter().rev() {
             let ptr = i.to_ptr();

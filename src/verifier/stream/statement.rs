@@ -4,7 +4,7 @@ use crate::verifier::state::Heap;
 use crate::verifier::state::State;
 use crate::verifier::state::Store;
 use crate::verifier::stream;
-use crate::verifier::{Sort, Table, Term, Theorem, Type};
+use crate::verifier::{Sort, Table, Term, Theorem, Type, Type_};
 use crate::TResult;
 
 use core::ops::Range;
@@ -31,7 +31,7 @@ where
     fn put_proof_stream(&mut self, proofs: Self::ProofStream);
 }
 
-fn allocate_var(proof_heap: &mut Heap, store: &mut Store, x: (usize, &Type)) {
+fn allocate_var<S: Store>(proof_heap: &mut Heap, store: &mut S, x: (usize, &Type_)) {
     let var = StoreElement::Var {
         ty: *x.1,
         var: x.0 as u16,
@@ -41,7 +41,12 @@ fn allocate_var(proof_heap: &mut Heap, store: &mut Store, x: (usize, &Type)) {
     proof_heap.push(ptr);
 }
 
-fn binder_check<T: Table>(table: &T, ty: Type, current_sort: u8, bv: &mut u64) -> TResult {
+fn binder_check<T: Table<Type = Type_>>(
+    table: &T,
+    ty: &Type_,
+    current_sort: u8,
+    bv: &mut u64,
+) -> TResult {
     let idx = ty.get_sort_idx();
 
     if idx >= current_sort {
@@ -82,13 +87,13 @@ pub enum TermDef<S> {
     },
     RunProof {
         stepper: stream::proof::Stepper<S>,
-        ret_type: Type,
+        ret_type: Type_,
         nr_args: usize,
         commands: Range<usize>,
     },
     ProofDone {
         stream: S,
-        ret_type: Type,
+        ret_type: Type_,
         commands: Range<usize>,
         nr_args: usize,
     },
@@ -137,7 +142,11 @@ where
         }
     }
 
-    pub fn step<T: Table>(&mut self, state: &mut State, table: &T) -> TResult<TermDefAction> {
+    pub fn step<T: Table<Type = Type_>>(
+        &mut self,
+        state: &mut State,
+        table: &T,
+    ) -> TResult<TermDefAction> {
         let old = std::mem::replace(self, Self::Dummy);
 
         let (next_state, ret_val) = match old {
@@ -173,7 +182,7 @@ where
                 let mut next_bv = 1;
 
                 for (i, ty) in binders.iter().enumerate() {
-                    binder_check(table, *ty, current_sort, &mut next_bv)?;
+                    binder_check(table, ty, current_sort, &mut next_bv)?;
 
                     allocate_var(&mut state.proof_heap, &mut state.store, (i, ty));
                 }
@@ -198,7 +207,7 @@ where
                     (
                         TermDef::RunProof {
                             stepper,
-                            ret_type,
+                            ret_type: *ret_type,
                             nr_args,
                             commands,
                         },
@@ -256,7 +265,7 @@ where
                     .get_type_of_expr(expr)
                     .ok_or(Kind::InvalidStoreType)?;
 
-                if !ty.is_compatible_to(ret_type) {
+                if !ty.is_compatible_to(&ret_type) {
                     return Err(Kind::TypeError);
                 }
 
@@ -364,7 +373,11 @@ where
         }
     }
 
-    pub fn step<T: Table>(&mut self, state: &mut State, table: &T) -> TResult<AxiomThmAction> {
+    pub fn step<T: Table<Type = Type_>>(
+        &mut self,
+        state: &mut State,
+        table: &T,
+    ) -> TResult<AxiomThmAction> {
         let old = std::mem::replace(self, Self::Dummy);
 
         let (next_state, ret_val) = match old {
@@ -393,7 +406,7 @@ where
                 let current_sort = state.get_current_sort();
 
                 for (i, ty) in binders.iter().enumerate() {
-                    binder_check(table, *ty, current_sort, &mut next_bv)?;
+                    binder_check(table, ty, current_sort, &mut next_bv)?;
                     allocate_var(&mut state.proof_heap, &mut state.store, (i, ty));
                 }
 
@@ -550,7 +563,11 @@ where
         }
     }
 
-    pub fn step<T: Table>(&mut self, state: &mut State, table: &T) -> TResult<Option<Action>> {
+    pub fn step<T: Table<Type = Type_>>(
+        &mut self,
+        state: &mut State,
+        table: &T,
+    ) -> TResult<Option<Action>> {
         let old = std::mem::replace(&mut self.state, StepState::Normal);
 
         let (next_state, ret) = match old {

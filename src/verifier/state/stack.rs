@@ -7,7 +7,7 @@ pub struct Stack {
 }
 
 impl Stack {
-    pub fn to_display<'a>(&'a self, store: &'a Store) -> DisplayStack<'a> {
+    pub fn to_display<'a, S: Store>(&'a self, store: &'a S) -> DisplayStack<'a, S> {
         DisplayStack(self, store)
     }
 
@@ -43,9 +43,9 @@ impl Stack {
 
 use std::fmt::{self, Display, Formatter};
 
-pub struct DisplayStack<'a>(&'a Stack, &'a Store);
+pub struct DisplayStack<'a, S: Store>(&'a Stack, &'a S);
 
-impl<'a> Display for DisplayStack<'a> {
+impl<'a, S: Store> Display for DisplayStack<'a, S> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         for i in self.0.data.iter().rev() {
             let ptr = i.to_ptr();

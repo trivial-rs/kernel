@@ -3,9 +3,10 @@ use crate::verifier::state::store::StoreConv;
 use crate::verifier::state::store::StoreElement;
 use crate::verifier::state::store::StorePointer;
 use crate::verifier::state::store::StoreTerm;
+use crate::verifier::state::Store;
 use crate::verifier::stream;
 use crate::verifier::Type;
-use crate::verifier::{Sort, State, Table, Term, Theorem};
+use crate::verifier::{Sort, State, Table, Term, Theorem, Type_};
 use crate::TResult;
 
 use crate::opcode;
@@ -143,7 +144,7 @@ where
 
 impl<T> Proof<T> for State
 where
-    T: Table,
+    T: Table<Type = Type_>,
 {
     fn end(&mut self) -> TResult {
         // todo: make this check the stack?
@@ -708,6 +709,7 @@ use std::convert::TryInto;
 pub trait Run {
     fn run<T: Table, S>(&mut self, table: &T, is_definition: bool, stream: S) -> TResult
     where
+        T: Table<Type = Type_>,
         S: IntoIterator,
         S::Item: TryInto<opcode::Command<opcode::Proof>>;
 }
@@ -715,6 +717,7 @@ pub trait Run {
 impl Run for State {
     fn run<T: Table, S>(&mut self, table: &T, is_definition: bool, stream: S) -> TResult
     where
+        T: Table<Type = Type_>,
         S: IntoIterator,
         S::Item: TryInto<opcode::Command<opcode::Proof>>,
     {
@@ -788,7 +791,11 @@ where
         self.stream
     }
 
-    pub fn step<T: Table>(&mut self, state: &mut State, table: &T) -> TResult<Option<Action>> {
+    pub fn step<T: Table<Type = Type_>>(
+        &mut self,
+        state: &mut State,
+        table: &T,
+    ) -> TResult<Option<Action>> {
         let (next_state, ret) = match &mut self.con {
             Continue::Normal => {
                 if let Some(command) = self.stream.next() {

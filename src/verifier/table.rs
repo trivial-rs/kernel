@@ -1,5 +1,5 @@
 use crate::opcode;
-use crate::verifier::Type;
+use crate::verifier::{Type, Type_};
 use core::ops::Range;
 
 pub trait Sort {
@@ -13,13 +13,15 @@ pub trait Sort {
 }
 
 pub trait Term {
+    type Type: Type;
+
     fn get_sort_idx(&self) -> u8;
 
     fn is_definition(&self) -> bool;
 
     fn get_binders(&self) -> Range<usize>;
 
-    fn get_return_type(&self) -> Type;
+    fn get_return_type(&self) -> &Self::Type;
 
     fn get_command_stream(&self) -> Range<usize>;
 }
@@ -32,8 +34,9 @@ pub trait Theorem {
 
 pub trait Table {
     type Sort: Sort;
-    type Term: Term;
+    type Term: Term<Type = Self::Type>;
     type Theorem: Theorem;
+    type Type: Type;
 
     fn get_sort(&self, idx: u8) -> Option<&Self::Sort>;
 
@@ -45,7 +48,7 @@ pub trait Table {
 
     fn get_unify_command(&self, idx: usize) -> Option<&opcode::Command<opcode::Unify>>;
 
-    fn get_binders(&self, idx: Range<usize>) -> Option<&[Type]>;
+    fn get_binders(&self, idx: Range<usize>) -> Option<&[Self::Type]>;
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -83,11 +86,13 @@ impl Sort for Sort_ {
 pub struct Term_ {
     pub sort: u8,
     pub binders: Range<usize>,
-    pub ret_type: Type,
+    pub ret_type: Type_,
     pub unify_commands: Range<usize>,
 }
 
 impl Term for Term_ {
+    type Type = Type_;
+
     fn get_sort_idx(&self) -> u8 {
         self.sort & 0x7F
     }
@@ -100,8 +105,8 @@ impl Term for Term_ {
         self.binders.clone()
     }
 
-    fn get_return_type(&self) -> Type {
-        self.ret_type
+    fn get_return_type(&self) -> &Self::Type {
+        &self.ret_type
     }
 
     fn get_command_stream(&self) -> Range<usize> {
@@ -131,13 +136,14 @@ pub struct Table_ {
     pub theorems: Vec<Theorem_>,
     pub terms: Vec<Term_>,
     pub unify: Vec<opcode::Command<opcode::Unify>>,
-    pub binders: Vec<Type>,
+    pub binders: Vec<Type_>,
 }
 
 impl Table for Table_ {
     type Sort = Sort_;
     type Term = Term_;
     type Theorem = Theorem_;
+    type Type = Type_;
 
     fn get_sort(&self, idx: u8) -> Option<&Self::Sort> {
         self.sorts.get(idx as usize)
@@ -159,7 +165,7 @@ impl Table for Table_ {
         self.unify.get(idx as usize)
     }
 
-    fn get_binders(&self, idx: Range<usize>) -> Option<&[Type]> {
+    fn get_binders(&self, idx: Range<usize>) -> Option<&[Self::Type]> {
         self.binders.get(idx)
     }
 }
