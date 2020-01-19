@@ -61,7 +61,7 @@ impl PackedPtr {
     }
 }
 
-use std::fmt::{self, Display, Formatter};
+use core::fmt::{self, Display, Formatter};
 
 pub struct DisplayPackedPtr<'a, S: Store>(PackedPtr, &'a S);
 
@@ -194,8 +194,8 @@ pub struct Term<'a, Ty> {
     pub args: &'a [PackedPtr],
 }
 
-use std::convert::TryFrom;
-use std::convert::TryInto;
+use core::convert::TryFrom;
+use core::convert::TryInto;
 
 impl<'a, Ty> TryFrom<StoreElementRef<'a, Ty>> for Term<'a, Ty> {
     type Error = Kind;

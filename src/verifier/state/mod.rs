@@ -62,7 +62,7 @@ impl<S: Store> State<S> {
     }
 }
 
-use std::fmt::{self, Display, Formatter};
+use core::fmt::{self, Display, Formatter};
 
 impl<S: Store> Display for State<S> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {

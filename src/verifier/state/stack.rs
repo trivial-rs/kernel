@@ -41,7 +41,7 @@ impl Stack {
     }
 }
 
-use std::fmt::{self, Display, Formatter};
+use core::fmt::{self, Display, Formatter};
 
 pub struct DisplayStack<'a, S: Store>(&'a Stack, &'a S);
 

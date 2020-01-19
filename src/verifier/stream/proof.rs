@@ -692,7 +692,7 @@ where
     }
 }
 
-use std::convert::TryInto;
+use core::convert::TryInto;
 
 pub trait Run<SS: Store> {
     fn run<T: Table, S>(&mut self, table: &T, is_definition: bool, stream: S) -> TResult

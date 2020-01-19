@@ -96,7 +96,7 @@ pub enum TermDef<S, Ty> {
     Dummy,
 }
 
-use std::convert::TryInto;
+use core::convert::TryInto;
 
 #[derive(Debug)]
 pub enum TermDefAction {
@@ -137,7 +137,7 @@ where
         state: &mut State<SS>,
         table: &T,
     ) -> TResult<TermDefAction> {
-        let old = std::mem::replace(self, Self::Dummy);
+        let old = core::mem::replace(self, Self::Dummy);
 
         let (next_state, ret_val) = match old {
             TermDef::Start { idx, stream } => {
@@ -292,7 +292,7 @@ where
             TermDef::Dummy => (TermDef::Dummy, TermDefAction::Done),
         };
 
-        std::mem::replace(self, next_state);
+        core::mem::replace(self, next_state);
 
         Ok(ret_val)
     }
@@ -368,7 +368,7 @@ where
         state: &mut State<SS>,
         table: &T,
     ) -> TResult<AxiomThmAction> {
-        let old = std::mem::replace(self, Self::Dummy);
+        let old = core::mem::replace(self, Self::Dummy);
 
         let (next_state, ret_val) = match old {
             AxiomThm::Start {
@@ -506,7 +506,7 @@ where
             AxiomThm::Dummy => (AxiomThm::Dummy, AxiomThmAction::Done),
         };
 
-        std::mem::replace(self, next_state);
+        core::mem::replace(self, next_state);
 
         Ok(ret_val)
     }
@@ -559,7 +559,7 @@ where
         state: &mut State<SS>,
         table: &T,
     ) -> TResult<Option<Action>> {
-        let old = std::mem::replace(&mut self.state, StepState::Normal);
+        let old = core::mem::replace(&mut self.state, StepState::Normal);
 
         let (next_state, ret) = match old {
             StepState::Normal => return self.normal(state),
@@ -596,7 +596,7 @@ where
             }
         };
 
-        std::mem::replace(&mut self.state, next_state);
+        core::mem::replace(&mut self.state, next_state);
 
         ret
     }

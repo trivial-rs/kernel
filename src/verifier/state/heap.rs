@@ -40,7 +40,7 @@ impl Heap {
     }
 }
 
-use std::fmt::{self, Display, Formatter};
+use core::fmt::{self, Display, Formatter};
 
 pub struct DisplayHeap<'a, S: Store>(&'a Heap, &'a S);
 

@@ -2,8 +2,8 @@ use crate::error::Kind;
 use crate::verifier::state::{store, Ptr, State, Store};
 use crate::verifier::{Table, Type};
 use crate::TResult;
+use core::convert::TryInto;
 use core::ops::Range;
-use std::convert::TryInto;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Mode {
