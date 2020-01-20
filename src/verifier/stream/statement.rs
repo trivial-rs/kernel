@@ -531,10 +531,10 @@ where
 
 #[derive(Debug)]
 pub enum Action {
-    AxiomStart,
-    ThmStart,
+    AxiomStart(u32),
+    ThmStart(u32),
     AxiomThmDone,
-    TermDefStart,
+    TermDefStart(u32),
     TermDef(TermDefAction),
     TermDefDone,
     AxiomThm(AxiomThmAction),
@@ -631,22 +631,25 @@ where
                 }
                 Opcode::TermDef => {
                     let ps = self.stream.take_proof_stream();
-                    let td = TermDef::new(state.get_current_term(), ps);
+                    let idx = state.get_current_term();
+                    let td = TermDef::new(idx, ps);
 
                     self.state = StepState::TermDef(td);
-                    Ok(Some(Action::TermDefStart))
+                    Ok(Some(Action::TermDefStart(idx)))
                 }
                 Opcode::Axiom => {
                     let ps = self.stream.take_proof_stream();
-                    let at = AxiomThm::new(state.get_current_theorem(), ps, true);
+                    let idx = state.get_current_theorem();
+                    let at = AxiomThm::new(idx, ps, true);
                     self.state = StepState::AxiomThm(at);
-                    Ok(Some(Action::AxiomStart))
+                    Ok(Some(Action::AxiomStart(idx)))
                 }
                 Opcode::Thm => {
                     let ps = self.stream.take_proof_stream();
-                    let at = AxiomThm::new(state.get_current_theorem(), ps, false);
+                    let idx = state.get_current_theorem();
+                    let at = AxiomThm::new(idx, ps, false);
                     self.state = StepState::AxiomThm(at);
-                    Ok(Some(Action::ThmStart))
+                    Ok(Some(Action::ThmStart(idx)))
                 }
             }
         } else {

@@ -10,8 +10,8 @@ use crate::TResult;
 use crate::opcode;
 
 pub enum FinalizeState {
-    Theorem(Ptr, bool),
-    Unfold(Ptr, Ptr),
+    Theorem(bool),
+    Unfold,
 }
 
 pub trait Proof<T>
@@ -33,7 +33,7 @@ where
         table: &T,
         idx: u32,
         save: bool,
-    ) -> TResult<(stream::unify::Stepper, FinalizeState)>;
+    ) -> TResult<(stream::unify::Stepper, Ptr, bool)>;
 
     fn theorem_end(&mut self, target: Ptr, save: bool) -> TResult;
 
@@ -47,7 +47,7 @@ where
 
     fn cong(&mut self) -> TResult;
 
-    fn unfold_start(&mut self, table: &T) -> TResult<(stream::unify::Stepper, FinalizeState)>;
+    fn unfold_start(&mut self, table: &T) -> TResult<(stream::unify::Stepper, Ptr, Ptr)>;
 
     fn unfold_end(&mut self, t_ptr: Ptr, e: Ptr) -> TResult;
 
@@ -102,7 +102,7 @@ where
         table: &T,
         command: opcode::Command<opcode::Proof>,
         is_definition: bool,
-    ) -> TResult<Option<(stream::unify::Stepper, FinalizeState)>> {
+    ) -> TResult<Option<FinalizeState>> {
         use crate::opcode::Proof::*;
         match (command.opcode, is_definition) {
             (End, _) => {
@@ -114,12 +114,10 @@ where
             (Term, _) => self.term(table, command.operand, false, is_definition),
             (TermSave, _) => self.term(table, command.operand, true, is_definition),
             (Thm, false) => {
-                let a = self.theorem_start(table, command.operand, false)?;
-                return Ok(Some(a));
+                return Ok(Some(FinalizeState::Theorem(false)));
             }
             (ThmSave, false) => {
-                let a = self.theorem_start(table, command.operand, true)?;
-                return Ok(Some(a));
+                return Ok(Some(FinalizeState::Theorem(true)));
             }
             (Thm, true) => Err(Kind::InvalidOpcodeInDef),
             (ThmSave, true) => Err(Kind::InvalidOpcodeInDef),
@@ -130,8 +128,7 @@ where
             (Symm, _) => self.symm(),
             (Cong, _) => self.cong(),
             (Unfold, _) => {
-                let a = self.unfold_start(table)?;
-                return Ok(Some(a));
+                return Ok(Some(FinalizeState::Unfold));
             }
             (ConvCut, _) => self.conv_cut(),
             (ConvRef, _) => self.conv_ref(command.operand),
@@ -309,7 +306,7 @@ where
         table: &T,
         idx: u32,
         save: bool,
-    ) -> TResult<(stream::unify::Stepper, FinalizeState)> {
+    ) -> TResult<(stream::unify::Stepper, Ptr, bool)> {
         if idx >= self.get_current_theorem() {
             return Err(Kind::TheoremOutOfRange);
         }
@@ -383,7 +380,7 @@ where
 
         let stepper = stream::unify::Stepper::new(stream::unify::Mode::Thm, target, commands);
 
-        Ok((stepper, FinalizeState::Theorem(target, save)))
+        Ok((stepper, target, save))
     }
 
     fn theorem_end(&mut self, target: Ptr, save: bool) -> TResult {
@@ -514,7 +511,7 @@ where
         Ok(())
     }
 
-    fn unfold_start(&mut self, table: &T) -> TResult<(stream::unify::Stepper, FinalizeState)> {
+    fn unfold_start(&mut self, table: &T) -> TResult<(stream::unify::Stepper, Ptr, Ptr)> {
         let e = self
             .proof_stack
             .pop()
@@ -544,7 +541,7 @@ where
 
         let stepper = stream::unify::Stepper::new(stream::unify::Mode::Def, e, commands);
 
-        Ok((stepper, FinalizeState::Unfold(t_ptr, e)))
+        Ok((stepper, t_ptr, e))
     }
 
     fn unfold_end(&mut self, t_ptr: Ptr, e: Ptr) -> TResult {
@@ -751,6 +748,14 @@ impl<SS: Store> Run<SS> for State<SS> {
 #[derive(Debug)]
 pub enum Continue {
     Normal,
+    BeforeTheorem {
+        idx: u32,
+        save: bool,
+    },
+    Theorem {
+        idx: u32,
+        save: bool,
+    },
     UnifyTheorem {
         stepper: stream::unify::Stepper,
         target: Ptr,
@@ -760,6 +765,8 @@ pub enum Continue {
         target: Ptr,
         save: bool,
     },
+    BeforeUnfold,
+    Unfold,
     UnifyUnfold {
         stepper: stream::unify::Stepper,
         t_ptr: Ptr,
@@ -785,7 +792,11 @@ pub enum Action {
     Unify(stream::unify::Action),
     UnifyDone,
     UnfoldDone,
+    BeforeUnfold,
+    UnfoldApplied,
     TheoremDone,
+    BeforeTheorem(u32),
+    TheoremApplied,
     Cmd(usize, opcode::Command<opcode::Proof>),
 }
 
@@ -818,16 +829,11 @@ where
                     self.idx += 1;
 
                     let next_state = match state.step(table, command, self.is_definition)? {
-                        Some((x, FinalizeState::Theorem(a, b))) => Continue::UnifyTheorem {
-                            stepper: x,
-                            target: a,
-                            save: b,
+                        Some(FinalizeState::Theorem(save)) => Continue::BeforeTheorem {
+                            idx: command.operand,
+                            save,
                         },
-                        Some((x, FinalizeState::Unfold(a, b))) => Continue::UnifyUnfold {
-                            stepper: x,
-                            t_ptr: a,
-                            e: b,
-                        },
+                        Some(FinalizeState::Unfold) => Continue::BeforeUnfold,
                         None => Continue::Normal,
                     };
 
@@ -835,6 +841,37 @@ where
                 } else {
                     (None, Ok(None))
                 }
+            }
+            Continue::BeforeTheorem { ref idx, ref save } => (
+                Some(Continue::Theorem {
+                    idx: *idx,
+                    save: *save,
+                }),
+                Ok(Some(Action::BeforeTheorem(*idx))),
+            ),
+            Continue::Theorem { idx, save } => {
+                let (x, a, b) = state.theorem_start(table, *idx, *save)?;
+                (
+                    Some(Continue::UnifyTheorem {
+                        stepper: x,
+                        target: a,
+                        save: b,
+                    }),
+                    Ok(Some(Action::TheoremApplied)),
+                )
+            }
+
+            Continue::BeforeUnfold => (Some(Continue::Unfold), Ok(Some(Action::BeforeUnfold))),
+            Continue::Unfold => {
+                let (x, a, b) = state.unfold_start(table)?;
+                (
+                    Some(Continue::UnifyUnfold {
+                        stepper: x,
+                        t_ptr: a,
+                        e: b,
+                    }),
+                    Ok(Some(Action::UnfoldApplied)),
+                )
             }
             Continue::UnifyUnfold {
                 ref mut stepper,
