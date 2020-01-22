@@ -274,15 +274,18 @@ use crate::error::{Kind, TResult};
 pub trait Store {
     type Type: Type;
 
-    fn create_term(
+    fn create_term<T>(
         &mut self,
         id: u32,
-        args: &[PackedPtr],
+        args: T,
         types: &[Self::Type],
         ret_type: &Self::Type,
         sort: u8,
         def: bool,
-    ) -> TResult<PackedPtr>;
+    ) -> TResult<PackedPtr>
+    where
+        T: IntoIterator<Item = PackedPtr>,
+        T: Clone;
 
     fn alloc_var(&mut self, ty: Self::Type, idx: u16) -> PackedPtr;
 
@@ -303,21 +306,25 @@ pub trait Store {
 impl Store for Store_ {
     type Type = Type_;
 
-    fn create_term(
+    fn create_term<T>(
         &mut self,
         id: u32,
-        args: &[PackedPtr],
-        types: &[Type_],
-        ret_type: &Type_,
+        args: T,
+        types: &[Self::Type],
+        ret_type: &Self::Type,
         sort: u8,
         def: bool,
-    ) -> TResult<PackedPtr> {
+    ) -> TResult<PackedPtr>
+    where
+        T: IntoIterator<Item = PackedPtr>,
+        T: Clone,
+    {
         let offset = self.args.len();
         let mut accum = 0;
         let mut g_deps = [0; 256];
         let mut bound = 0;
 
-        for (&arg, &target_type) in args.iter().zip(types.iter()) {
+        for (arg, &target_type) in args.clone().into_iter().zip(types.iter()) {
             let arg = arg.as_expr().ok_or(Kind::InvalidStoreType)?;
 
             let ty = self.get_type_of_expr(arg).ok_or(Kind::InvalidStoreExpr)?;
@@ -363,11 +370,11 @@ impl Store for Store_ {
             }
         }
 
-        self.args.extend_from_slice(args);
+        self.args.extend(args);
 
         let ise = InternalStoreElement::Term {
             ty: Type::new(sort, accum, false),
-            num_args: args.len() as u16,
+            num_args: types.len() as u16,
             id,
             ptr_args: offset,
         };

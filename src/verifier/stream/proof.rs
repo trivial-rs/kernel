@@ -202,7 +202,7 @@ where
 
         let ptr = self.store.create_term(
             idx,
-            last,
+            last.iter().cloned(),
             binders,
             term.get_return_type(),
             term.get_sort_idx(),
