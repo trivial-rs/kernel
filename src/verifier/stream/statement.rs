@@ -30,38 +30,6 @@ where
     fn put_proof_stream(&mut self, proofs: Self::ProofStream);
 }
 
-fn allocate_var<S: Store>(proof_heap: &mut Heap, store: &mut S, x: (usize, &S::Type)) {
-    let ptr = store.alloc_var(*x.1, x.0 as u16);
-    proof_heap.push(ptr);
-}
-
-fn binder_check<T: Table>(table: &T, ty: &T::Type, current_sort: u8, bv: &mut u64) -> TResult {
-    let idx = ty.get_sort_idx();
-
-    if idx >= current_sort {
-        return Err(Kind::SortOutOfRange);
-    }
-
-    let sort = table.get_sort(ty.get_sort_idx()).ok_or(Kind::InvalidSort)?;
-    let deps = ty.get_deps();
-
-    if ty.is_bound() {
-        if sort.is_strict() {
-            return Err(Kind::SortIsStrict);
-        }
-
-        if deps != *bv {
-            return Err(Kind::BindDep);
-        }
-
-        *bv *= 2;
-    } else if (deps & !(*bv - 1)) != 0 {
-        return Err(Kind::BindDep);
-    }
-
-    Ok(())
-}
-
 pub trait Statement {
     fn term_def(&mut self, idx: u32) -> TResult;
 
@@ -169,17 +137,12 @@ where
                 state.unify_heap.clear();
                 state.hyp_stack.clear();
 
-                let mut next_bv = 1;
+                state.allocate_binders(table, binders)?;
 
-                for (i, ty) in binders.iter().enumerate() {
-                    binder_check(table, ty, current_sort, &mut next_bv)?;
-
-                    allocate_var(&mut state.proof_heap, &mut state.store, (i, ty));
-                }
-
+                let mut next_bv = state.next_bv;
                 let ret_type = term.get_return_type();
 
-                binder_check(table, ret_type, current_sort, &mut next_bv)?;
+                State::<SS>::binder_check(table, ret_type, current_sort, &mut next_bv)?;
 
                 state.next_bv = next_bv;
 
@@ -391,16 +354,7 @@ where
                     .get_binders(binders)
                     .ok_or(Kind::InvalidBinderIndices)?;
 
-                let mut next_bv = 1;
-
-                let current_sort = state.get_current_sort();
-
-                for (i, ty) in binders.iter().enumerate() {
-                    binder_check(table, ty, current_sort, &mut next_bv)?;
-                    allocate_var(&mut state.proof_heap, &mut state.store, (i, ty));
-                }
-
-                state.next_bv = next_bv;
+                state.allocate_binders(table, binders)?;
 
                 let stepper = stream::proof::Stepper::new(false, stream);
 
