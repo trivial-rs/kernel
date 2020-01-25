@@ -1,6 +1,6 @@
 [package]
 name = "trivial-kernel"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Ivo C.S. Wingelaar <ivo@codeforge.rs>"]
 description = "A Metamath Zero kernel for Trivial"
 keywords = ["metamath-zero", "trivial"]
