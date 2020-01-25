@@ -1,5 +1,4 @@
 use crate::error::Kind;
-use crate::verifier::state::Heap;
 use crate::verifier::state::State;
 use crate::verifier::state::Store;
 use crate::verifier::stream;
