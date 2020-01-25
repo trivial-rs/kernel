@@ -817,6 +817,16 @@ where
         self.stream
     }
 
+    pub fn run<SS: Store, T: Table<Type = SS::Type>>(
+        &mut self,
+        state: &mut State<SS>,
+        table: &T,
+    ) -> TResult<()> {
+        while self.step(state, table)?.is_some() {}
+
+        Ok(())
+    }
+
     pub fn step<SS: Store, T: Table<Type = SS::Type>>(
         &mut self,
         state: &mut State<SS>,
