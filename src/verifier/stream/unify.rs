@@ -104,8 +104,7 @@ impl<S: Store> Unify for Context<S> {
             .as_expr()
             .ok_or(Kind::InvalidStackType)?;
 
-        use crate::verifier::context::store::StoreVar;
-        let var: StoreVar<_> = self.store.get(e)?;
+        let var: store::Var<_> = self.store.get(e)?;
         let ty = var.ty;
 
         if !(ty.is_bound() && ty.get_sort_idx() == (sort as u8)) {

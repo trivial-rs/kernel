@@ -114,25 +114,7 @@ impl Ptr {
 }
 
 #[derive(Debug)]
-pub enum StoreElement<'a, Ty> {
-    Var {
-        ty: Ty,
-        var: u16,
-    },
-    Term {
-        ty: Ty,
-        id: u32,
-        args: &'a [PackedPtr],
-    },
-    /// Convertability proof
-    Conv {
-        e1: PackedPtr,
-        e2: PackedPtr,
-    },
-}
-
-#[derive(Debug)]
-pub enum StoreElementRef<'a, Ty> {
+pub enum ElementRef<'a, Ty> {
     Var {
         ty: &'a Ty,
         var: &'a u16,
@@ -149,7 +131,7 @@ pub enum StoreElementRef<'a, Ty> {
     },
 }
 
-impl<'a, Ty: Type> StoreElementRef<'a, Ty> {
+impl<'a, Ty: Type> ElementRef<'a, Ty> {
     pub fn to_display<'b, S: Store<Type = Ty>>(
         &'b self,
         store: &'b S,
@@ -159,18 +141,18 @@ impl<'a, Ty: Type> StoreElementRef<'a, Ty> {
 }
 
 pub struct DisplayElement<'a, 'b, Ty: Type, S: Store<Type = Ty>>(
-    pub &'b StoreElementRef<'a, Ty>,
+    pub &'b ElementRef<'a, Ty>,
     pub &'b S,
 );
 
 impl<'a, 'b, Ty: Type, S: Store<Type = Ty>> Display for DisplayElement<'a, 'b, Ty, S> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self.0 {
-            StoreElementRef::Var { var, .. } => {
+            ElementRef::Var { var, .. } => {
                 write!(f, "v{}", var)
                 //
             }
-            StoreElementRef::Term { id, args, .. } => {
+            ElementRef::Term { id, args, .. } => {
                 write!(f, "t{} (", id)?;
 
                 for i in *args {
@@ -182,7 +164,7 @@ impl<'a, 'b, Ty: Type, S: Store<Type = Ty>> Display for DisplayElement<'a, 'b, T
 
                 write!(f, ")")
             }
-            StoreElementRef::Conv { e1, e2 } => write!(f, "conv: {:?} {:?}", e1, e2),
+            ElementRef::Conv { e1, e2 } => write!(f, "conv: {:?} {:?}", e1, e2),
         }
     }
 }
@@ -197,11 +179,11 @@ pub struct Term<'a, Ty> {
 use core::convert::TryFrom;
 use core::convert::TryInto;
 
-impl<'a, Ty> TryFrom<StoreElementRef<'a, Ty>> for Term<'a, Ty> {
+impl<'a, Ty> TryFrom<ElementRef<'a, Ty>> for Term<'a, Ty> {
     type Error = Kind;
 
-    fn try_from(element: StoreElementRef<'a, Ty>) -> Result<Self, Self::Error> {
-        if let StoreElementRef::Term { ty, id, args } = element {
+    fn try_from(element: ElementRef<'a, Ty>) -> Result<Self, Self::Error> {
+        if let ElementRef::Term { ty, id, args } = element {
             Ok(Term { ty, id, args })
         } else {
             Err(Kind::InvalidStoreType)
@@ -210,17 +192,17 @@ impl<'a, Ty> TryFrom<StoreElementRef<'a, Ty>> for Term<'a, Ty> {
 }
 
 #[derive(Debug)]
-pub struct StoreConv {
+pub struct Conv {
     pub e1: PackedPtr,
     pub e2: PackedPtr,
 }
 
-impl<'a, Ty> TryFrom<StoreElementRef<'a, Ty>> for StoreConv {
+impl<'a, Ty> TryFrom<ElementRef<'a, Ty>> for Conv {
     type Error = Kind;
 
-    fn try_from(element: StoreElementRef<'a, Ty>) -> Result<Self, Self::Error> {
-        if let StoreElementRef::Conv { e1, e2 } = element {
-            Ok(StoreConv { e1: *e1, e2: *e2 })
+    fn try_from(element: ElementRef<'a, Ty>) -> Result<Self, Self::Error> {
+        if let ElementRef::Conv { e1, e2 } = element {
+            Ok(Conv { e1: *e1, e2: *e2 })
         } else {
             Err(Kind::InvalidStoreType)
         }
@@ -228,17 +210,17 @@ impl<'a, Ty> TryFrom<StoreElementRef<'a, Ty>> for StoreConv {
 }
 
 #[derive(Debug)]
-pub struct StoreVar<Ty> {
+pub struct Var<Ty> {
     pub ty: Ty,
     pub var: u16,
 }
 
-impl<'a, Ty: Copy> TryFrom<StoreElementRef<'a, Ty>> for StoreVar<Ty> {
+impl<'a, Ty: Copy> TryFrom<ElementRef<'a, Ty>> for Var<Ty> {
     type Error = Kind;
 
-    fn try_from(element: StoreElementRef<'a, Ty>) -> Result<Self, Self::Error> {
-        if let StoreElementRef::Var { ty, var } = element {
-            Ok(StoreVar { ty: *ty, var: *var })
+    fn try_from(element: ElementRef<'a, Ty>) -> Result<Self, Self::Error> {
+        if let ElementRef::Var { ty, var } = element {
+            Ok(Var { ty: *ty, var: *var })
         } else {
             Err(Kind::InvalidStoreType)
         }
@@ -295,9 +277,9 @@ pub trait Store {
 
     fn get_type_of_expr(&self, ptr: Ptr) -> Option<&Self::Type>;
 
-    fn get_element(&self, ptr: Ptr) -> Option<StoreElementRef<Self::Type>>;
+    fn get_element(&self, ptr: Ptr) -> Option<ElementRef<Self::Type>>;
 
-    fn get<'a, T: TryFrom<StoreElementRef<'a, Self::Type>, Error = Kind>>(
+    fn get<'a, T: TryFrom<ElementRef<'a, Self::Type>, Error = Kind>>(
         &'a self,
         ptr: Ptr,
     ) -> TResult<T>;
@@ -417,11 +399,11 @@ impl Store for Store_ {
         }
     }
 
-    fn get_element(&self, ptr: Ptr) -> Option<StoreElementRef<Self::Type>> {
+    fn get_element(&self, ptr: Ptr) -> Option<ElementRef<Self::Type>> {
         let element = self.data.get(ptr.get_idx())?;
 
         match element {
-            InternalStoreElement::Var { ty, var } => Some(StoreElementRef::Var { ty, var }),
+            InternalStoreElement::Var { ty, var } => Some(ElementRef::Var { ty, var }),
             InternalStoreElement::Term {
                 ty,
                 num_args,
@@ -434,13 +416,13 @@ impl Store for Store_ {
                     .as_slice()
                     .get(ptr_args..(ptr_args + *num_args as usize))?;
 
-                Some(StoreElementRef::Term { ty, id, args })
+                Some(ElementRef::Term { ty, id, args })
             }
-            InternalStoreElement::Conv { e1, e2 } => Some(StoreElementRef::Conv { e1, e2 }),
+            InternalStoreElement::Conv { e1, e2 } => Some(ElementRef::Conv { e1, e2 }),
         }
     }
 
-    fn get<'a, T: TryFrom<StoreElementRef<'a, Self::Type>, Error = Kind>>(
+    fn get<'a, T: TryFrom<ElementRef<'a, Self::Type>, Error = Kind>>(
         &'a self,
         ptr: Ptr,
     ) -> TResult<T> {

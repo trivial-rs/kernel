@@ -1,5 +1,5 @@
 use crate::error::Kind;
-use crate::verifier::context::{store, store::Ptr, store::StoreConv, Context, Store};
+use crate::verifier::context::{store, Context, Ptr, Store};
 use crate::verifier::stream;
 use crate::verifier::{Sort, State, Table, Term, Theorem, Type};
 use crate::TResult;
@@ -673,7 +673,7 @@ where
     }
 
     fn conv_ref(&mut self, idx: u32) -> TResult {
-        let x: StoreConv = self.store.get(Ptr(idx))?;
+        let x: store::Conv = self.store.get(Ptr(idx))?;
 
         let e1 = self
             .proof_stack
