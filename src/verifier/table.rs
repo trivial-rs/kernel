@@ -2,36 +2,65 @@ use crate::opcode;
 use crate::verifier::{Type, Type_};
 use core::ops::Range;
 
+/// A handle to a sort.
+///
+/// Sorts have modifiers that can be queried with this handle.
+/// These modifiers correspond to assertions that are verified by the kernel
+/// during execution.
 pub trait Sort {
+    /// A pure sort does not allow expression constructors.
     fn is_pure(&self) -> bool;
 
+    /// A strict sort can not be used as a name.
+    ///
+    /// TODO: explain what a name is.
     fn is_strict(&self) -> bool;
 
+    /// Only statements with a provable sort can be proven by the kernel.
     fn is_provable(&self) -> bool;
 
+    /// A free sort cannot be used as a dummy variable.
     fn is_free(&self) -> bool;
 }
 
+/// A handle to a term.
 pub trait Term {
     type Type: Type;
 
+    /// Returns the index of the sort this term has.
     fn get_sort_idx(&self) -> u8;
 
+    /// Returns if this term is a definition.
+    ///
+    /// Definitions are always conservative and can be unfolded in a proof.
     fn is_definition(&self) -> bool;
 
+    /// Returns the range of the binders (arguments) of the term.
+    ///
+    /// The range can be queried in the `Table` to get the binders themselves.
     fn get_binders(&self) -> Range<usize>;
 
+    /// Returns the type of the expression.
     fn get_return_type(&self) -> &Self::Type;
 
+    /// Returns the unification command stream if this term is a definition.
     fn get_command_stream(&self) -> Range<usize>;
 }
 
+/// A handle to a theorem.
+///
+/// Theorems in the table only contain the list of binders, and a command
+/// stream for unification.
+/// The number of hypotheses can be determined by counting the number of `Hyp`
+/// commands in the unification stream.
 pub trait Theorem {
     fn get_binders(&self) -> Range<usize>;
 
     fn get_unify_commands(&self) -> Range<usize>;
 }
 
+/// An interface that enables queries for properties of sorts, terms and
+/// theorems.
 pub trait Table {
     type Sort: Sort;
     type Term: Term<Type = Self::Type>;
