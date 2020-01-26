@@ -1,8 +1,5 @@
 use crate::error::Kind;
-use crate::verifier::state::store;
-use crate::verifier::state::store::Ptr;
-use crate::verifier::state::store::StoreConv;
-use crate::verifier::state::Store;
+use crate::verifier::context::{store, store::Ptr, store::StoreConv, Context, Store};
 use crate::verifier::stream;
 use crate::verifier::{Sort, State, Table, Term, Theorem, Type};
 use crate::TResult;
@@ -22,9 +19,9 @@ where
 
     fn reference(&mut self, idx: u32) -> TResult;
 
-    fn dummy(&mut self, table: &T, sort: u32) -> TResult;
+    fn dummy(&mut self, table: &T, sort: u32, current_sort: u32) -> TResult;
 
-    fn term(&mut self, table: &T, idx: u32, save: bool, def: bool) -> TResult;
+    fn term(&mut self, table: &T, idx: u32, current_term: u32, save: bool, def: bool) -> TResult;
 
     fn theorem(&mut self, table: &T, idx: u32, save: bool) -> TResult;
 
@@ -32,6 +29,7 @@ where
         &mut self,
         table: &T,
         idx: u32,
+        current_theorem: u32,
         save: bool,
     ) -> TResult<(stream::unify::Stepper, Ptr, bool)>;
 
@@ -64,6 +62,7 @@ where
     fn execute(
         &mut self,
         table: &T,
+        state: &State,
         command: opcode::Command<opcode::Proof>,
         is_definition: bool,
     ) -> TResult<bool> {
@@ -74,9 +73,21 @@ where
                 return Ok(true);
             }
             (Ref, _) => self.reference(command.operand),
-            (Dummy, _) => self.dummy(table, command.operand),
-            (Term, _) => self.term(table, command.operand, false, is_definition),
-            (TermSave, _) => self.term(table, command.operand, true, is_definition),
+            (Dummy, _) => self.dummy(table, command.operand, state.current_sort.into()),
+            (Term, _) => self.term(
+                table,
+                command.operand,
+                state.current_term,
+                false,
+                is_definition,
+            ),
+            (TermSave, _) => self.term(
+                table,
+                command.operand,
+                state.current_term,
+                true,
+                is_definition,
+            ),
             (Thm, false) => self.theorem(table, command.operand, false),
             (ThmSave, false) => self.theorem(table, command.operand, true),
             (Thm, true) => Err(Kind::InvalidOpcodeInDef),
@@ -100,6 +111,7 @@ where
     fn step(
         &mut self,
         table: &T,
+        state: &State,
         command: opcode::Command<opcode::Proof>,
         is_definition: bool,
     ) -> TResult<Option<FinalizeState>> {
@@ -110,9 +122,21 @@ where
                 return Ok(None);
             }
             (Ref, _) => self.reference(command.operand),
-            (Dummy, _) => self.dummy(table, command.operand),
-            (Term, _) => self.term(table, command.operand, false, is_definition),
-            (TermSave, _) => self.term(table, command.operand, true, is_definition),
+            (Dummy, _) => self.dummy(table, command.operand, state.current_sort.into()),
+            (Term, _) => self.term(
+                table,
+                command.operand,
+                state.current_term,
+                false,
+                is_definition,
+            ),
+            (TermSave, _) => self.term(
+                table,
+                command.operand,
+                state.current_term,
+                true,
+                is_definition,
+            ),
             (Thm, false) => {
                 return Ok(Some(FinalizeState::Theorem(false)));
             }
@@ -141,7 +165,7 @@ where
     }
 }
 
-impl<T, S: Store> Proof<T> for State<S>
+impl<T, S: Store> Proof<T> for Context<S>
 where
     T: Table<Type = S::Type>,
 {
@@ -158,8 +182,8 @@ where
         Ok(())
     }
 
-    fn dummy(&mut self, table: &T, sort: u32) -> TResult {
-        if sort >= self.get_current_sort() as u32 {
+    fn dummy(&mut self, table: &T, sort: u32, current_sort: u32) -> TResult {
+        if sort >= current_sort {
             return Err(Kind::SortOutOfRange);
         }
 
@@ -185,8 +209,8 @@ where
         Ok(())
     }
 
-    fn term(&mut self, table: &T, idx: u32, save: bool, def: bool) -> TResult {
-        if idx >= self.get_current_term() {
+    fn term(&mut self, table: &T, idx: u32, current_term: u32, save: bool, def: bool) -> TResult {
+        if idx >= current_term {
             return Err(Kind::TermOutOfRange);
         }
 
@@ -305,9 +329,10 @@ where
         &mut self,
         table: &T,
         idx: u32,
+        current_theorem: u32,
         save: bool,
     ) -> TResult<(stream::unify::Stepper, Ptr, bool)> {
-        if idx >= self.get_current_theorem() {
+        if idx >= current_theorem {
             return Err(Kind::TheoremOutOfRange);
         }
 
@@ -719,15 +744,27 @@ where
 use core::convert::TryInto;
 
 pub trait Run<SS: Store> {
-    fn run<T: Table, S>(&mut self, table: &T, is_definition: bool, stream: S) -> TResult
+    fn run<T: Table, S>(
+        &mut self,
+        state: &State,
+        table: &T,
+        is_definition: bool,
+        stream: S,
+    ) -> TResult
     where
         T: Table<Type = SS::Type>,
         S: IntoIterator,
         S::Item: TryInto<opcode::Command<opcode::Proof>>;
 }
 
-impl<SS: Store> Run<SS> for State<SS> {
-    fn run<T: Table, S>(&mut self, table: &T, is_definition: bool, stream: S) -> TResult
+impl<SS: Store> Run<SS> for Context<SS> {
+    fn run<T: Table, S>(
+        &mut self,
+        state: &State,
+        table: &T,
+        is_definition: bool,
+        stream: S,
+    ) -> TResult
     where
         T: Table<Type = SS::Type>,
         S: IntoIterator,
@@ -736,7 +773,7 @@ impl<SS: Store> Run<SS> for State<SS> {
         for i in stream {
             let command = i.try_into().map_err(|_| Kind::UnknownCommand)?;
 
-            if self.execute(table, command, is_definition)? {
+            if self.execute(table, state, command, is_definition)? {
                 return Ok(());
             }
         }
@@ -780,8 +817,8 @@ pub enum Continue {
 
 #[derive(Debug)]
 pub struct Stepper<S> {
-    // we can't own &mut State, because of ownership issues
     is_definition: bool,
+    state: State,
     stream: S,
     idx: usize,
     con: Continue,
@@ -804,9 +841,10 @@ impl<S> Stepper<S>
 where
     S: Iterator<Item = opcode::Command<opcode::Proof>>,
 {
-    pub fn new(is_definition: bool, stream: S) -> Stepper<S> {
+    pub fn new(is_definition: bool, state: State, stream: S) -> Stepper<S> {
         Stepper {
             is_definition,
+            state,
             stream,
             idx: 0,
             con: Continue::Normal,
@@ -819,17 +857,17 @@ where
 
     pub fn run<SS: Store, T: Table<Type = SS::Type>>(
         &mut self,
-        state: &mut State<SS>,
+        context: &mut Context<SS>,
         table: &T,
     ) -> TResult<()> {
-        while self.step(state, table)?.is_some() {}
+        while self.step(context, table)?.is_some() {}
 
         Ok(())
     }
 
     pub fn step<SS: Store, T: Table<Type = SS::Type>>(
         &mut self,
-        state: &mut State<SS>,
+        context: &mut Context<SS>,
         table: &T,
     ) -> TResult<Option<Action>> {
         let (next_state, ret) = match &mut self.con {
@@ -838,14 +876,15 @@ where
                     let idx = self.idx;
                     self.idx += 1;
 
-                    let next_state = match state.step(table, command, self.is_definition)? {
-                        Some(FinalizeState::Theorem(save)) => Continue::BeforeTheorem {
-                            idx: command.operand,
-                            save,
-                        },
-                        Some(FinalizeState::Unfold) => Continue::BeforeUnfold,
-                        None => Continue::Normal,
-                    };
+                    let next_state =
+                        match context.step(table, &self.state, command, self.is_definition)? {
+                            Some(FinalizeState::Theorem(save)) => Continue::BeforeTheorem {
+                                idx: command.operand,
+                                save,
+                            },
+                            Some(FinalizeState::Unfold) => Continue::BeforeUnfold,
+                            None => Continue::Normal,
+                        };
 
                     (Some(next_state), Ok(Some(Action::Cmd(idx, command))))
                 } else {
@@ -860,7 +899,8 @@ where
                 Ok(Some(Action::BeforeTheorem(*idx))),
             ),
             Continue::Theorem { idx, save } => {
-                let (x, a, b) = state.theorem_start(table, *idx, *save)?;
+                let (x, a, b) =
+                    context.theorem_start(table, *idx, self.state.current_theorem, *save)?;
                 (
                     Some(Continue::UnifyTheorem {
                         stepper: x,
@@ -873,7 +913,7 @@ where
 
             Continue::BeforeUnfold => (Some(Continue::Unfold), Ok(Some(Action::BeforeUnfold))),
             Continue::Unfold => {
-                let (x, a, b) = state.unfold_start(table)?;
+                let (x, a, b) = context.unfold_start(table)?;
                 (
                     Some(Continue::UnifyUnfold {
                         stepper: x,
@@ -887,7 +927,7 @@ where
                 ref mut stepper,
                 ref t_ptr,
                 ref e,
-            } => match stepper.step(state, table)? {
+            } => match stepper.step(context, table)? {
                 Some(x) => (None, Ok(Some(Action::Unify(x)))),
                 None => (
                     Some(Continue::ContinueUnfold {
@@ -898,14 +938,14 @@ where
                 ),
             },
             Continue::ContinueUnfold { t_ptr, e } => {
-                Proof::<T>::unfold_end(state, *t_ptr, *e)?;
+                Proof::<T>::unfold_end(context, *t_ptr, *e)?;
                 (Some(Continue::Normal), Ok(Some(Action::UnfoldDone)))
             }
             Continue::UnifyTheorem {
                 ref mut stepper,
                 ref target,
                 ref save,
-            } => match stepper.step(state, table)? {
+            } => match stepper.step(context, table)? {
                 Some(x) => (None, Ok(Some(Action::Unify(x)))),
                 None => (
                     Some(Continue::ContinueTheorem {
@@ -916,7 +956,7 @@ where
                 ),
             },
             Continue::ContinueTheorem { target, save } => {
-                Proof::<T>::theorem_end(state, *target, *save)?;
+                Proof::<T>::theorem_end(context, *target, *save)?;
                 (Some(Continue::Normal), Ok(Some(Action::TheoremDone)))
             }
         };

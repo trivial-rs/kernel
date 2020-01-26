@@ -1,3 +1,4 @@
+pub mod context;
 pub mod state;
 pub mod stream;
 pub mod table;

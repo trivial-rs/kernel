@@ -1,6 +1,6 @@
 use crate::error::Kind;
+use crate::verifier::context::{Context, Store};
 use crate::verifier::state::State;
-use crate::verifier::state::Store;
 use crate::verifier::stream;
 use crate::verifier::{Sort, Table, Term, Theorem, Type};
 use crate::TResult;
@@ -101,7 +101,8 @@ where
 
     pub fn step<SS: Store<Type = Ty>, T: Table<Type = SS::Type>>(
         &mut self,
-        state: &mut State<SS>,
+        context: &mut Context<SS>,
+        state: &State,
         table: &T,
     ) -> TResult<TermDefAction> {
         let old = core::mem::replace(self, Self::Dummy);
@@ -129,21 +130,21 @@ where
                     .get_binders(binders)
                     .ok_or(Kind::InvalidBinderIndices)?;
 
-                state.store.clear();
-                state.proof_stack.clear();
-                state.proof_heap.clear();
-                state.unify_stack.clear();
-                state.unify_heap.clear();
-                state.hyp_stack.clear();
+                context.store.clear();
+                context.proof_stack.clear();
+                context.proof_heap.clear();
+                context.unify_stack.clear();
+                context.unify_heap.clear();
+                context.hyp_stack.clear();
 
-                state.allocate_binders(table, binders)?;
+                context.allocate_binders(table, current_sort, binders)?;
 
-                let mut next_bv = state.next_bv;
+                let mut next_bv = context.next_bv;
                 let ret_type = term.get_return_type();
 
-                State::<SS>::binder_check(table, ret_type, current_sort, &mut next_bv)?;
+                Context::<SS>::binder_check(table, ret_type, current_sort, &mut next_bv)?;
 
-                state.next_bv = next_bv;
+                context.next_bv = next_bv;
 
                 if term.get_sort_idx() != ret_type.get_sort_idx() {
                     return Err(Kind::BadReturnType);
@@ -152,7 +153,7 @@ where
                 if !term.is_definition() {
                     (TermDef::Done { stream }, TermDefAction::Done)
                 } else {
-                    let stepper = stream::proof::Stepper::new(true, stream);
+                    let stepper = stream::proof::Stepper::new(true, *state, stream);
 
                     let commands = term.get_command_stream();
 
@@ -172,7 +173,7 @@ where
                 ret_type,
                 nr_args,
                 commands,
-            } => match stepper.step(state, table)? {
+            } => match stepper.step(context, table)? {
                 Some(x) => {
                     //
                     (
@@ -201,18 +202,18 @@ where
                 commands,
                 nr_args,
             } => {
-                if state.proof_stack.len() != 1 {
+                if context.proof_stack.len() != 1 {
                     return Err(Kind::StackHasMoreThanOne);
                 }
 
-                let expr = state
+                let expr = context
                     .proof_stack
                     .pop()
                     .ok_or(Kind::Impossible)?
                     .as_expr()
                     .ok_or(Kind::InvalidStoreExpr)?;
 
-                let ty = state
+                let ty = context
                     .store
                     .get_type_of_expr(expr)
                     .ok_or(Kind::InvalidStoreType)?;
@@ -225,13 +226,13 @@ where
                     return Err(Kind::UnaccountedDependencies);
                 }
 
-                let subslice = state
+                let subslice = context
                     .proof_heap
                     .as_slice()
                     .get(..nr_args)
                     .ok_or(Kind::InvalidHeapIndex)?;
 
-                state.unify_heap.clone_from(subslice);
+                context.unify_heap.clone_from(subslice);
 
                 let stepper = stream::unify::Stepper::new(stream::unify::Mode::Def, expr, commands);
 
@@ -243,7 +244,7 @@ where
             TermDef::RunUnify {
                 stream,
                 mut stepper,
-            } => match stepper.step(state, table)? {
+            } => match stepper.step(context, table)? {
                 Some(x) => (
                     TermDef::RunUnify { stream, stepper },
                     TermDefAction::Unify(x),
@@ -327,7 +328,8 @@ where
 
     pub fn step<SS: Store, T: Table<Type = SS::Type>>(
         &mut self,
-        state: &mut State<SS>,
+        context: &mut Context<SS>,
+        state: &State,
         table: &T,
     ) -> TResult<AxiomThmAction> {
         let old = core::mem::replace(self, Self::Dummy);
@@ -340,12 +342,12 @@ where
             } => {
                 let thm = table.get_theorem(idx).ok_or(Kind::InvalidTheorem)?;
 
-                state.store.clear();
-                state.proof_stack.clear();
-                state.proof_heap.clear();
-                state.unify_stack.clear();
-                state.unify_heap.clear();
-                state.hyp_stack.clear();
+                context.store.clear();
+                context.proof_stack.clear();
+                context.proof_heap.clear();
+                context.unify_stack.clear();
+                context.unify_heap.clear();
+                context.hyp_stack.clear();
 
                 let binders = thm.get_binders();
                 let nr_args = binders.len();
@@ -353,9 +355,9 @@ where
                     .get_binders(binders)
                     .ok_or(Kind::InvalidBinderIndices)?;
 
-                state.allocate_binders(table, binders)?;
+                context.allocate_binders(table, state.current_sort, binders)?;
 
-                let stepper = stream::proof::Stepper::new(false, stream);
+                let stepper = stream::proof::Stepper::new(false, *state, stream);
 
                 let commands = thm.get_unify_commands();
 
@@ -374,7 +376,7 @@ where
                 commands,
                 is_axiom,
                 nr_args,
-            } => match stepper.step(state, table)? {
+            } => match stepper.step(context, table)? {
                 Some(x) => {
                     //
                     (
@@ -403,11 +405,11 @@ where
                 is_axiom,
                 nr_args,
             } => {
-                if state.proof_stack.len() != 1 {
+                if context.proof_stack.len() != 1 {
                     return Err(Kind::StackHasMoreThanOne);
                 }
 
-                let expr = state.proof_stack.pop().ok_or(Kind::Impossible)?;
+                let expr = context.proof_stack.pop().ok_or(Kind::Impossible)?;
 
                 let expr = if is_axiom {
                     expr.as_expr()
@@ -417,7 +419,7 @@ where
 
                 let expr = expr.ok_or(Kind::InvalidStackType)?;
 
-                let sort = state
+                let sort = context
                     .store
                     .get_type_of_expr(expr)
                     .ok_or(Kind::InvalidStoreExpr)?
@@ -429,13 +431,13 @@ where
                     return Err(Kind::SortNotProvable);
                 }
 
-                let subslice = state
+                let subslice = context
                     .proof_heap
                     .as_slice()
                     .get(..nr_args)
                     .ok_or(Kind::InvalidHeapIndex)?;
 
-                state.unify_heap.clone_from(subslice);
+                context.unify_heap.clone_from(subslice);
 
                 let stepper =
                     stream::unify::Stepper::new(stream::unify::Mode::ThmEnd, expr, commands);
@@ -448,7 +450,7 @@ where
             AxiomThm::RunUnify {
                 stream,
                 mut stepper,
-            } => match stepper.step(state, table)? {
+            } => match stepper.step(context, table)? {
                 Some(x) => (
                     AxiomThm::RunUnify { stream, stepper },
                     AxiomThmAction::Unify(x),
@@ -524,7 +526,8 @@ where
 
     pub fn step<SS: Store<Type = Ty>, T: Table<Type = SS::Type>>(
         &mut self,
-        state: &mut State<SS>,
+        context: &mut Context<SS>,
+        state: &mut State,
         table: &T,
     ) -> TResult<Option<Action>> {
         let old = core::mem::replace(&mut self.state, StepState::Normal);
@@ -542,7 +545,7 @@ where
                     state.increment_current_term();
                     (StepState::Normal, Ok(Some(Action::TermDefDone)))
                 } else {
-                    let ret = td.step(state, table)?;
+                    let ret = td.step(context, state, table)?;
                     (StepState::TermDef(td), Ok(Some(Action::TermDef(ret))))
                 }
             }
@@ -558,7 +561,7 @@ where
 
                     (StepState::Normal, Ok(Some(Action::AxiomThmDone)))
                 } else {
-                    let ret = at.step(state, table)?;
+                    let ret = at.step(context, state, table)?;
                     (StepState::AxiomThm(at), Ok(Some(Action::AxiomThm(ret))))
                 }
             }
@@ -569,7 +572,7 @@ where
         ret
     }
 
-    fn normal<SS: Store<Type = Ty>>(&mut self, state: &mut State<SS>) -> TResult<Option<Action>> {
+    fn normal(&mut self, state: &mut State) -> TResult<Option<Action>> {
         if let Some(x) = self.stream.next() {
             let x = x.try_into().map_err(|_| Kind::UnknownCommand)?;
 

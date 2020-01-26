@@ -1,5 +1,5 @@
 use crate::error::Kind;
-use crate::verifier::state::{store, Ptr, State, Store};
+use crate::verifier::context::{store, Context, Ptr, Store};
 use crate::verifier::{Table, Type};
 use crate::TResult;
 use core::convert::TryInto;
@@ -52,7 +52,7 @@ pub trait Unify {
     }
 }
 
-impl<S: Store> Unify for State<S> {
+impl<S: Store> Unify for Context<S> {
     fn end(&mut self, mode: Mode) -> TResult {
         if mode == Mode::ThmEnd && self.hyp_stack.len() != 0 {
             return Err(Kind::UnfinishedHypStack);
@@ -104,7 +104,7 @@ impl<S: Store> Unify for State<S> {
             .as_expr()
             .ok_or(Kind::InvalidStackType)?;
 
-        use crate::verifier::state::store::StoreVar;
+        use crate::verifier::context::store::StoreVar;
         let var: StoreVar<_> = self.store.get(e)?;
         let ty = var.ty;
 
@@ -165,7 +165,7 @@ pub trait Run<S: Store> {
         T: Table<Type = S::Type>;
 }
 
-impl<S: Store> Run<S> for State<S> {
+impl<S: Store> Run<S> for Context<S> {
     fn run<T>(&mut self, stream: Range<usize>, table: &T, mode: Mode, target: Ptr) -> TResult
     where
         T: Table<Type = S::Type>,
@@ -217,14 +217,14 @@ impl Stepper {
 
     pub fn step<S: Store, T: Table<Type = S::Type>>(
         &mut self,
-        state: &mut State<S>,
+        context: &mut Context<S>,
         table: &T,
     ) -> TResult<Option<Action>> {
         if self.done {
             Ok(None)
         } else if !self.started {
-            state.unify_stack.clear();
-            state.unify_stack.push(self.target.to_expr());
+            context.unify_stack.clear();
+            context.unify_stack.push(self.target.to_expr());
             self.started = true;
             Ok(Some(Action::Started))
         } else {
@@ -236,7 +236,7 @@ impl Stepper {
                         .get_unify_command(idx)
                         .ok_or(Kind::InvalidUnifyCommandIndex)?;
 
-                    self.done = state.execute(*command, self.mode)?;
+                    self.done = context.execute(*command, self.mode)?;
 
                     Ok(Some(Action::Cmd(idx, *command)))
                 }
