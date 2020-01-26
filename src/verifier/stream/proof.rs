@@ -2,7 +2,7 @@ use crate::error::Kind;
 use crate::verifier::context::{store, Context, Ptr, Store};
 use crate::verifier::stream;
 use crate::verifier::{Sort, State, Table, Term, Theorem, Type};
-use crate::TResult;
+use crate::KResult;
 
 use crate::opcode;
 
@@ -15,15 +15,15 @@ pub trait Proof<T>
 where
     T: Table,
 {
-    fn end(&mut self) -> TResult;
+    fn end(&mut self) -> KResult;
 
-    fn reference(&mut self, idx: u32) -> TResult;
+    fn reference(&mut self, idx: u32) -> KResult;
 
-    fn dummy(&mut self, table: &T, sort: u32, current_sort: u32) -> TResult;
+    fn dummy(&mut self, table: &T, sort: u32, current_sort: u32) -> KResult;
 
-    fn term(&mut self, table: &T, idx: u32, current_term: u32, save: bool, def: bool) -> TResult;
+    fn term(&mut self, table: &T, idx: u32, current_term: u32, save: bool, def: bool) -> KResult;
 
-    fn theorem(&mut self, table: &T, idx: u32, save: bool) -> TResult;
+    fn theorem(&mut self, table: &T, idx: u32, save: bool) -> KResult;
 
     fn theorem_start(
         &mut self,
@@ -31,33 +31,33 @@ where
         idx: u32,
         current_theorem: u32,
         save: bool,
-    ) -> TResult<(stream::unify::Stepper, Ptr, bool)>;
+    ) -> KResult<(stream::unify::Stepper, Ptr, bool)>;
 
-    fn theorem_end(&mut self, target: Ptr, save: bool) -> TResult;
+    fn theorem_end(&mut self, target: Ptr, save: bool) -> KResult;
 
-    fn hyp(&mut self, table: &T) -> TResult;
+    fn hyp(&mut self, table: &T) -> KResult;
 
-    fn conv(&mut self) -> TResult;
+    fn conv(&mut self) -> KResult;
 
-    fn refl(&mut self) -> TResult;
+    fn refl(&mut self) -> KResult;
 
-    fn symm(&mut self) -> TResult;
+    fn symm(&mut self) -> KResult;
 
-    fn cong(&mut self) -> TResult;
+    fn cong(&mut self) -> KResult;
 
-    fn unfold_start(&mut self, table: &T) -> TResult<(stream::unify::Stepper, Ptr, Ptr)>;
+    fn unfold_start(&mut self, table: &T) -> KResult<(stream::unify::Stepper, Ptr, Ptr)>;
 
-    fn unfold_end(&mut self, t_ptr: Ptr, e: Ptr) -> TResult;
+    fn unfold_end(&mut self, t_ptr: Ptr, e: Ptr) -> KResult;
 
-    fn unfold(&mut self, table: &T) -> TResult;
+    fn unfold(&mut self, table: &T) -> KResult;
 
-    fn conv_cut(&mut self) -> TResult;
+    fn conv_cut(&mut self) -> KResult;
 
-    fn conv_ref(&mut self, idx: u32) -> TResult;
+    fn conv_ref(&mut self, idx: u32) -> KResult;
 
-    fn conv_save(&mut self) -> TResult;
+    fn conv_save(&mut self) -> KResult;
 
-    fn save(&mut self) -> TResult;
+    fn save(&mut self) -> KResult;
 
     fn execute(
         &mut self,
@@ -65,7 +65,7 @@ where
         state: &State,
         command: opcode::Command<opcode::Proof>,
         is_definition: bool,
-    ) -> TResult<bool> {
+    ) -> KResult<bool> {
         use crate::opcode::Proof::*;
         match (command.opcode, is_definition) {
             (End, _) => {
@@ -114,7 +114,7 @@ where
         state: &State,
         command: opcode::Command<opcode::Proof>,
         is_definition: bool,
-    ) -> TResult<Option<FinalizeState>> {
+    ) -> KResult<Option<FinalizeState>> {
         use crate::opcode::Proof::*;
         match (command.opcode, is_definition) {
             (End, _) => {
@@ -169,12 +169,12 @@ impl<T, S: Store> Proof<T> for Context<S>
 where
     T: Table<Type = S::Type>,
 {
-    fn end(&mut self) -> TResult {
+    fn end(&mut self) -> KResult {
         // todo: make this check the stack?
         Ok(())
     }
 
-    fn reference(&mut self, idx: u32) -> TResult {
+    fn reference(&mut self, idx: u32) -> KResult {
         let i = self.proof_heap.get(idx).ok_or(Kind::InvalidHeapIndex)?;
 
         self.proof_stack.push(i);
@@ -182,7 +182,7 @@ where
         Ok(())
     }
 
-    fn dummy(&mut self, table: &T, sort: u32, current_sort: u32) -> TResult {
+    fn dummy(&mut self, table: &T, sort: u32, current_sort: u32) -> KResult {
         if sort >= current_sort {
             return Err(Kind::SortOutOfRange);
         }
@@ -209,7 +209,7 @@ where
         Ok(())
     }
 
-    fn term(&mut self, table: &T, idx: u32, current_term: u32, save: bool, def: bool) -> TResult {
+    fn term(&mut self, table: &T, idx: u32, current_term: u32, save: bool, def: bool) -> KResult {
         if idx >= current_term {
             return Err(Kind::TermOutOfRange);
         }
@@ -244,7 +244,7 @@ where
         Ok(())
     }
 
-    fn theorem(&mut self, table: &T, idx: u32, save: bool) -> TResult {
+    fn theorem(&mut self, table: &T, idx: u32, save: bool) -> KResult {
         let thm = table.get_theorem(idx).ok_or(Kind::InvalidTheorem)?;
         let target = self
             .proof_stack
@@ -331,7 +331,7 @@ where
         idx: u32,
         current_theorem: u32,
         save: bool,
-    ) -> TResult<(stream::unify::Stepper, Ptr, bool)> {
+    ) -> KResult<(stream::unify::Stepper, Ptr, bool)> {
         if idx >= current_theorem {
             return Err(Kind::TheoremOutOfRange);
         }
@@ -408,7 +408,7 @@ where
         Ok((stepper, target, save))
     }
 
-    fn theorem_end(&mut self, target: Ptr, save: bool) -> TResult {
+    fn theorem_end(&mut self, target: Ptr, save: bool) -> KResult {
         let proof = target.to_proof();
 
         self.proof_stack.push(proof);
@@ -420,7 +420,7 @@ where
         Ok(())
     }
 
-    fn hyp(&mut self, table: &T) -> TResult {
+    fn hyp(&mut self, table: &T) -> KResult {
         let e = self
             .proof_stack
             .pop()
@@ -444,7 +444,7 @@ where
         Ok(())
     }
 
-    fn conv(&mut self) -> TResult {
+    fn conv(&mut self) -> KResult {
         let e2 = self
             .proof_stack
             .pop()
@@ -465,7 +465,7 @@ where
         Ok(())
     }
 
-    fn refl(&mut self) -> TResult {
+    fn refl(&mut self) -> KResult {
         let e1 = self
             .proof_stack
             .pop()
@@ -486,7 +486,7 @@ where
         Ok(())
     }
 
-    fn symm(&mut self) -> TResult {
+    fn symm(&mut self) -> KResult {
         let e1 = self
             .proof_stack
             .pop()
@@ -506,7 +506,7 @@ where
         Ok(())
     }
 
-    fn cong(&mut self) -> TResult {
+    fn cong(&mut self) -> KResult {
         let e1 = self
             .proof_stack
             .pop()
@@ -536,7 +536,7 @@ where
         Ok(())
     }
 
-    fn unfold_start(&mut self, table: &T) -> TResult<(stream::unify::Stepper, Ptr, Ptr)> {
+    fn unfold_start(&mut self, table: &T) -> KResult<(stream::unify::Stepper, Ptr, Ptr)> {
         let e = self
             .proof_stack
             .pop()
@@ -569,7 +569,7 @@ where
         Ok((stepper, t_ptr, e))
     }
 
-    fn unfold_end(&mut self, t_ptr: Ptr, e: Ptr) -> TResult {
+    fn unfold_end(&mut self, t_ptr: Ptr, e: Ptr) -> KResult {
         let t_prime = self
             .proof_stack
             .pop()
@@ -594,7 +594,7 @@ where
         Ok(())
     }
 
-    fn unfold(&mut self, table: &T) -> TResult {
+    fn unfold(&mut self, table: &T) -> KResult {
         let e = self
             .proof_stack
             .pop()
@@ -648,7 +648,7 @@ where
         Ok(())
     }
 
-    fn conv_cut(&mut self) -> TResult {
+    fn conv_cut(&mut self) -> KResult {
         let e1 = self
             .proof_stack
             .pop()
@@ -672,7 +672,7 @@ where
         Ok(())
     }
 
-    fn conv_ref(&mut self, idx: u32) -> TResult {
+    fn conv_ref(&mut self, idx: u32) -> KResult {
         let x: store::Conv = self.store.get(Ptr(idx))?;
 
         let e1 = self
@@ -696,7 +696,7 @@ where
         Ok(())
     }
 
-    fn conv_save(&mut self) -> TResult {
+    fn conv_save(&mut self) -> KResult {
         let e1 = self
             .proof_stack
             .pop()
@@ -717,7 +717,7 @@ where
         Ok(())
     }
 
-    fn save(&mut self) -> TResult {
+    fn save(&mut self) -> KResult {
         let element = self.proof_stack.peek().ok_or(Kind::ProofStackUnderflow)?;
 
         if element.as_co_conv().is_some() {
@@ -750,7 +750,7 @@ pub trait Run<SS: Store> {
         table: &T,
         is_definition: bool,
         stream: S,
-    ) -> TResult
+    ) -> KResult
     where
         T: Table<Type = SS::Type>,
         S: IntoIterator,
@@ -764,7 +764,7 @@ impl<SS: Store> Run<SS> for Context<SS> {
         table: &T,
         is_definition: bool,
         stream: S,
-    ) -> TResult
+    ) -> KResult
     where
         T: Table<Type = SS::Type>,
         S: IntoIterator,
@@ -859,7 +859,7 @@ where
         &mut self,
         context: &mut Context<SS>,
         table: &T,
-    ) -> TResult<()> {
+    ) -> KResult<()> {
         while self.step(context, table)?.is_some() {}
 
         Ok(())
@@ -869,7 +869,7 @@ where
         &mut self,
         context: &mut Context<SS>,
         table: &T,
-    ) -> TResult<Option<Action>> {
+    ) -> KResult<Option<Action>> {
         let (next_state, ret) = match &mut self.con {
             Continue::Normal => {
                 if let Some(command) = self.stream.next() {

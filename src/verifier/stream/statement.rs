@@ -3,7 +3,7 @@ use crate::verifier::context::{Context, Store};
 use crate::verifier::state::State;
 use crate::verifier::stream;
 use crate::verifier::{Sort, Table, Term, Theorem, Type};
-use crate::TResult;
+use crate::KResult;
 
 use core::ops::Range;
 
@@ -98,7 +98,7 @@ where
         context: &mut Context<SS>,
         state: &State,
         table: &T,
-    ) -> TResult<TermDefAction> {
+    ) -> KResult<TermDefAction> {
         let old = core::mem::replace(self, Self::Dummy);
 
         let (next_state, ret_val) = match old {
@@ -325,7 +325,7 @@ where
         context: &mut Context<SS>,
         state: &State,
         table: &T,
-    ) -> TResult<AxiomThmAction> {
+    ) -> KResult<AxiomThmAction> {
         let old = core::mem::replace(self, Self::Dummy);
 
         let (next_state, ret_val) = match old {
@@ -523,7 +523,7 @@ where
         context: &mut Context<SS>,
         state: &mut State,
         table: &T,
-    ) -> TResult<Option<Action>> {
+    ) -> KResult<Option<Action>> {
         let old = core::mem::replace(&mut self.state, StepState::Normal);
 
         let (next_state, ret) = match old {
@@ -566,7 +566,7 @@ where
         ret
     }
 
-    fn normal(&mut self, state: &mut State) -> TResult<Option<Action>> {
+    fn normal(&mut self, state: &mut State) -> KResult<Option<Action>> {
         if let Some(x) = self.stream.next() {
             let x = x.try_into().map_err(|_| Kind::UnknownCommand)?;
 

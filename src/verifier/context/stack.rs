@@ -1,5 +1,5 @@
 use super::{PackedPtr, Store};
-use crate::{error::Kind, TResult};
+use crate::{error::Kind, KResult};
 
 #[derive(Debug, Default)]
 pub struct Stack {
@@ -31,7 +31,7 @@ impl Stack {
         self.data.len()
     }
 
-    pub fn get_last(&self, nr: usize) -> TResult<&[PackedPtr]> {
+    pub fn get_last(&self, nr: usize) -> KResult<&[PackedPtr]> {
         let len = self.data.len();
         self.data
             .as_slice()

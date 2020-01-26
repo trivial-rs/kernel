@@ -43,4 +43,5 @@ pub enum Kind {
     StreamExhausted,
 }
 
-pub type TResult<O = ()> = Result<O, Kind>;
+/// A typedef for the result from a kernel method.
+pub type KResult<O = ()> = Result<O, Kind>;

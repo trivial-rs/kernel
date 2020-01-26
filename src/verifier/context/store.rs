@@ -259,7 +259,8 @@ pub struct Store_ {
     args: Vec<PackedPtr>,
 }
 
-use crate::error::{Kind, TResult};
+use crate::error::Kind;
+use crate::KResult;
 
 pub trait Store {
     type Type: Type;
@@ -272,7 +273,7 @@ pub trait Store {
         ret_type: &Self::Type,
         sort: u8,
         def: bool,
-    ) -> TResult<PackedPtr>
+    ) -> KResult<PackedPtr>
     where
         T: IntoIterator<Item = PackedPtr>,
         T: Clone;
@@ -290,7 +291,7 @@ pub trait Store {
     fn get<'a, T: TryFrom<ElementRef<'a, Self::Type>, Error = Kind>>(
         &'a self,
         ptr: Ptr,
-    ) -> TResult<T>;
+    ) -> KResult<T>;
 }
 
 impl Store for Store_ {
@@ -304,7 +305,7 @@ impl Store for Store_ {
         ret_type: &Self::Type,
         sort: u8,
         def: bool,
-    ) -> TResult<PackedPtr>
+    ) -> KResult<PackedPtr>
     where
         T: IntoIterator<Item = PackedPtr>,
         T: Clone,
@@ -433,7 +434,7 @@ impl Store for Store_ {
     fn get<'a, T: TryFrom<ElementRef<'a, Self::Type>, Error = Kind>>(
         &'a self,
         ptr: Ptr,
-    ) -> TResult<T> {
+    ) -> KResult<T> {
         let element = self.get_element(ptr).ok_or(Kind::InvalidStoreIndex)?;
 
         element.try_into()

@@ -6,7 +6,7 @@ use crate::error::Kind;
 use crate::verifier::table::Sort;
 use crate::verifier::Table;
 use crate::verifier::Type;
-use crate::TResult;
+use crate::KResult;
 pub use heap::Heap;
 pub use stack::Stack;
 pub use store::{PackedPtr, Ptr, Store};
@@ -52,7 +52,7 @@ impl<S: Store> Context<S> {
         ty: &T::Type,
         current_sort: u8,
         bv: &mut u64,
-    ) -> TResult {
+    ) -> KResult {
         let idx = ty.get_sort_idx();
 
         if idx >= current_sort {
@@ -84,7 +84,7 @@ impl<S: Store> Context<S> {
         table: &T,
         current_sort: u8,
         binders: &[T::Type],
-    ) -> TResult {
+    ) -> KResult {
         let mut next_bv = 1;
 
         for (i, ty) in binders.iter().enumerate() {

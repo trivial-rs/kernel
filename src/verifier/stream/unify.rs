@@ -1,7 +1,7 @@
 use crate::error::Kind;
 use crate::verifier::context::{store, Context, Ptr, Store};
 use crate::verifier::{Table, Type};
-use crate::TResult;
+use crate::KResult;
 use core::convert::TryInto;
 use core::ops::Range;
 
@@ -15,19 +15,19 @@ pub enum Mode {
 use crate::opcode;
 
 pub trait Unify {
-    fn end(&mut self, mode: Mode) -> TResult;
+    fn end(&mut self, mode: Mode) -> KResult;
 
-    fn term(&mut self, idx: u32, save: bool) -> TResult;
+    fn term(&mut self, idx: u32, save: bool) -> KResult;
 
-    fn reference(&mut self, idx: u32) -> TResult;
+    fn reference(&mut self, idx: u32) -> KResult;
 
-    fn dummy(&mut self, sort: u32) -> TResult;
+    fn dummy(&mut self, sort: u32) -> KResult;
 
-    fn hyp_thm(&mut self) -> TResult;
+    fn hyp_thm(&mut self) -> KResult;
 
-    fn hyp_thm_end(&mut self) -> TResult;
+    fn hyp_thm_end(&mut self) -> KResult;
 
-    fn execute(&mut self, command: opcode::Command<opcode::Unify>, mode: Mode) -> TResult<bool> {
+    fn execute(&mut self, command: opcode::Command<opcode::Unify>, mode: Mode) -> KResult<bool> {
         use crate::opcode::Unify::*;
         match command.opcode {
             End => {
@@ -53,7 +53,7 @@ pub trait Unify {
 }
 
 impl<S: Store> Unify for Context<S> {
-    fn end(&mut self, mode: Mode) -> TResult {
+    fn end(&mut self, mode: Mode) -> KResult {
         if mode == Mode::ThmEnd && self.hyp_stack.len() != 0 {
             return Err(Kind::UnfinishedHypStack);
         }
@@ -65,7 +65,7 @@ impl<S: Store> Unify for Context<S> {
         Ok(())
     }
 
-    fn term(&mut self, idx: u32, save: bool) -> TResult {
+    fn term(&mut self, idx: u32, save: bool) -> KResult {
         let ptr = self.unify_stack.pop().ok_or(Kind::UnifyStackUnderflow)?;
 
         let term: store::Term<_> = self.store.get(ptr.into())?;
@@ -85,7 +85,7 @@ impl<S: Store> Unify for Context<S> {
         Ok(())
     }
 
-    fn reference(&mut self, idx: u32) -> TResult {
+    fn reference(&mut self, idx: u32) -> KResult {
         let x = self.unify_heap.get(idx).ok_or(Kind::InvalidHeapIndex)?;
         let y = self.unify_stack.pop().ok_or(Kind::UnifyStackUnderflow)?;
 
@@ -96,7 +96,7 @@ impl<S: Store> Unify for Context<S> {
         }
     }
 
-    fn dummy(&mut self, sort: u32) -> TResult {
+    fn dummy(&mut self, sort: u32) -> KResult {
         let e = self
             .unify_stack
             .pop()
@@ -132,7 +132,7 @@ impl<S: Store> Unify for Context<S> {
         Ok(())
     }
 
-    fn hyp_thm(&mut self) -> TResult {
+    fn hyp_thm(&mut self) -> KResult {
         let proof = self
             .proof_stack
             .pop()
@@ -145,7 +145,7 @@ impl<S: Store> Unify for Context<S> {
         Ok(())
     }
 
-    fn hyp_thm_end(&mut self) -> TResult {
+    fn hyp_thm_end(&mut self) -> KResult {
         if self.unify_stack.len() != 0 {
             return Err(Kind::UnfinishedUnifyStack);
         }
@@ -159,13 +159,13 @@ impl<S: Store> Unify for Context<S> {
 }
 
 pub trait Run<S: Store> {
-    fn run<T>(&mut self, stream: Range<usize>, table: &T, mode: Mode, target: Ptr) -> TResult
+    fn run<T>(&mut self, stream: Range<usize>, table: &T, mode: Mode, target: Ptr) -> KResult
     where
         T: Table<Type = S::Type>;
 }
 
 impl<S: Store> Run<S> for Context<S> {
-    fn run<T>(&mut self, stream: Range<usize>, table: &T, mode: Mode, target: Ptr) -> TResult
+    fn run<T>(&mut self, stream: Range<usize>, table: &T, mode: Mode, target: Ptr) -> KResult
     where
         T: Table<Type = S::Type>,
     {
@@ -218,7 +218,7 @@ impl Stepper {
         &mut self,
         context: &mut Context<S>,
         table: &T,
-    ) -> TResult<Option<Action>> {
+    ) -> KResult<Option<Action>> {
         if self.done {
             Ok(None)
         } else if !self.started {
