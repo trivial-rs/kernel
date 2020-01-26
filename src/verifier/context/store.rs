@@ -444,8 +444,10 @@ impl Store for Store_ {
 impl Display for Store_ {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         for i in 0..self.data.len() {
-            let el = self.get_element(Ptr(i as u32)).unwrap();
-            writeln!(f, "> {}", el.to_display(self))?;
+            match self.get_element(Ptr(i as u32)) {
+                Some(el) => writeln!(f, "> {}", el.to_display(self))?,
+                None => writeln!(f, "> Invalid ptr")?,
+            }
         }
         Ok(())
     }
