@@ -783,7 +783,7 @@ impl<SS: Store> Run<SS> for Context<SS> {
 }
 
 #[derive(Debug)]
-pub enum Continue {
+enum Continue {
     Normal,
     BeforeTheorem {
         idx: u32,
@@ -798,7 +798,7 @@ pub enum Continue {
         target: Ptr,
         save: bool,
     },
-    ContinueTheorem {
+    UnifyTheoremDone {
         target: Ptr,
         save: bool,
     },
@@ -809,7 +809,7 @@ pub enum Continue {
         t_ptr: Ptr,
         e: Ptr,
     },
-    ContinueUnfold {
+    UnfoldDone {
         t_ptr: Ptr,
         e: Ptr,
     },
@@ -930,14 +930,14 @@ where
             } => match stepper.step(context, table)? {
                 Some(x) => (None, Ok(Some(Action::Unify(x)))),
                 None => (
-                    Some(Continue::ContinueUnfold {
+                    Some(Continue::UnfoldDone {
                         t_ptr: *t_ptr,
                         e: *e,
                     }),
                     Ok(Some(Action::UnifyDone)),
                 ),
             },
-            Continue::ContinueUnfold { t_ptr, e } => {
+            Continue::UnfoldDone { t_ptr, e } => {
                 Proof::<T>::unfold_end(context, *t_ptr, *e)?;
                 (Some(Continue::Normal), Ok(Some(Action::UnfoldDone)))
             }
@@ -948,14 +948,14 @@ where
             } => match stepper.step(context, table)? {
                 Some(x) => (None, Ok(Some(Action::Unify(x)))),
                 None => (
-                    Some(Continue::ContinueTheorem {
+                    Some(Continue::UnifyTheoremDone {
                         target: *target,
                         save: *save,
                     }),
                     Ok(Some(Action::UnifyDone)),
                 ),
             },
-            Continue::ContinueTheorem { target, save } => {
+            Continue::UnifyTheoremDone { target, save } => {
                 Proof::<T>::theorem_end(context, *target, *save)?;
                 (Some(Continue::Normal), Ok(Some(Action::TheoremDone)))
             }

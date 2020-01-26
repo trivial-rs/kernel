@@ -29,12 +29,6 @@ where
     fn put_proof_stream(&mut self, proofs: Self::ProofStream);
 }
 
-pub trait Statement {
-    fn term_def(&mut self, idx: u32) -> TResult;
-
-    fn axiom_thm(&mut self, idx: u32, is_axiom: bool) -> TResult;
-}
-
 #[derive(Debug)]
 pub enum TermDef<S, Ty> {
     Start {
