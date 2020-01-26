@@ -10,7 +10,7 @@ impl PackedPtr {
 
     pub fn as_expr(self) -> Option<Ptr> {
         if self.0 & 0x3 == 0x0 {
-            Some(self.to_ptr())
+            Some(self.into())
         } else {
             None
         }
@@ -22,7 +22,7 @@ impl PackedPtr {
 
     pub fn as_proof(self) -> Option<Ptr> {
         if self.0 & 0x03 == 0x01 {
-            Some(self.to_ptr())
+            Some(self.into())
         } else {
             None
         }
@@ -34,7 +34,7 @@ impl PackedPtr {
 
     pub fn as_conv(self) -> Option<Ptr> {
         if self.0 & 0x03 == 0x02 {
-            Some(self.to_ptr())
+            Some(self.into())
         } else {
             None
         }
@@ -46,18 +46,26 @@ impl PackedPtr {
 
     pub fn as_co_conv(self) -> Option<Ptr> {
         if self.0 & 0x03 == 0x03 {
-            Some(self.to_ptr())
+            Some(self.into())
         } else {
             None
         }
     }
 
-    pub fn to_ptr(self) -> Ptr {
-        Ptr(self.0 >> 2)
-    }
-
     pub fn to_display<'a, S: Store>(&self, store: &'a S) -> DisplayPackedPtr<'a, S> {
         DisplayPackedPtr(*self, store)
+    }
+}
+
+impl From<&PackedPtr> for Ptr {
+    fn from(ptr: &PackedPtr) -> Ptr {
+        Ptr(ptr.0 >> 2)
+    }
+}
+
+impl From<PackedPtr> for Ptr {
+    fn from(ptr: PackedPtr) -> Ptr {
+        Ptr(ptr.0 >> 2)
     }
 }
 
@@ -67,7 +75,7 @@ pub struct DisplayPackedPtr<'a, S: Store>(PackedPtr, &'a S);
 
 impl<'a, S: Store> Display for DisplayPackedPtr<'a, S> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}", self.0.to_ptr().0)
+        write!(f, "{}", Into::<Ptr>::into(self.0).0)
     }
 }
 
@@ -156,7 +164,7 @@ impl<'a, 'b, Ty: Type, S: Store<Type = Ty>> Display for DisplayElement<'a, 'b, T
                 write!(f, "t{} (", id)?;
 
                 for i in *args {
-                    match self.1.get_element(i.to_ptr()) {
+                    match self.1.get_element(i.into()) {
                         Some(el) => write!(f, "{} ", el.to_display(self.1))?,
                         None => write!(f, "invalid_ptr")?,
                     }

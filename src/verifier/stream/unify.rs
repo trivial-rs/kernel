@@ -68,7 +68,7 @@ impl<S: Store> Unify for Context<S> {
     fn term(&mut self, idx: u32, save: bool) -> TResult {
         let ptr = self.unify_stack.pop().ok_or(Kind::UnifyStackUnderflow)?;
 
-        let term: store::Term<_> = self.store.get(ptr.to_ptr())?;
+        let term: store::Term<_> = self.store.get(ptr.into())?;
 
         if *term.id != idx {
             return Err(Kind::UnifyTermFailure);

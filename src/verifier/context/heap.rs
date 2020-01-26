@@ -47,7 +47,7 @@ pub struct DisplayHeap<'a, S: Store>(&'a Heap, &'a S);
 impl<'a, S: Store> Display for DisplayHeap<'a, S> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         for i in self.0.data.iter().rev() {
-            let ptr = i.to_ptr();
+            let ptr = i.into();
 
             match self.1.get_element(ptr) {
                 Some(el) => writeln!(f, "> {} {}", i, el.to_display(self.1))?,

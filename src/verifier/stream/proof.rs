@@ -529,8 +529,8 @@ where
         }
 
         for (i, j) in e1.args.iter().zip(e2.args.iter()).rev() {
-            self.proof_stack.push(j.to_ptr().to_expr());
-            self.proof_stack.push(i.to_ptr().to_co_conv());
+            self.proof_stack.push(Into::<Ptr>::into(j).to_expr());
+            self.proof_stack.push(Into::<Ptr>::into(i).to_co_conv());
         }
 
         Ok(())
@@ -689,7 +689,7 @@ where
             .as_expr()
             .ok_or(Kind::InvalidStoreExpr)?;
 
-        if x.e1.to_ptr() != e1 || x.e2.to_ptr() != e2 {
+        if Into::<Ptr>::into(x.e1) != e1 || Into::<Ptr>::into(x.e2) != e2 {
             return Err(Kind::UnifyRefFailure);
         }
 
@@ -727,8 +727,8 @@ where
         if element.as_conv().is_some() {
             let e = self.proof_stack.get_last(2)?;
 
-            let l = e[0].to_ptr().to_expr();
-            let r = e[1].to_ptr().to_expr();
+            let l = Into::<Ptr>::into(e[0]).to_expr();
+            let r = Into::<Ptr>::into(e[1]).to_expr();
 
             let ptr = self.store.alloc_conv(l, r);
             self.proof_heap.push(ptr);
