@@ -1,5 +1,5 @@
 use crate::opcode;
-use crate::verifier::{Type, Type_};
+use crate::{Var, Var_};
 use core::ops::Range;
 
 /// A handle to a sort.
@@ -25,7 +25,7 @@ pub trait Sort {
 
 /// A handle to a term.
 pub trait Term {
-    type Type: Type;
+    type Type: Var;
 
     /// Returns the index of the sort this term has.
     fn get_sort_idx(&self) -> u8;
@@ -63,9 +63,9 @@ pub trait Theorem {
 /// theorems.
 pub trait Table {
     type Sort: Sort;
-    type Term: Term<Type = Self::Type>;
+    type Term: Term<Type = Self::Var>;
     type Theorem: Theorem;
-    type Type: Type;
+    type Var: Var;
 
     fn get_sort(&self, idx: u8) -> Option<&Self::Sort>;
 
@@ -77,7 +77,7 @@ pub trait Table {
 
     fn get_unify_command(&self, idx: usize) -> Option<&opcode::Command<opcode::Unify>>;
 
-    fn get_binders(&self, idx: Range<usize>) -> Option<&[Self::Type]>;
+    fn get_binders(&self, idx: Range<usize>) -> Option<&[Self::Var]>;
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -115,12 +115,12 @@ impl Sort for Sort_ {
 pub struct Term_ {
     pub sort: u8,
     pub binders: Range<usize>,
-    pub ret_type: Type_,
+    pub ret_type: Var_,
     pub unify_commands: Range<usize>,
 }
 
 impl Term for Term_ {
-    type Type = Type_;
+    type Type = Var_;
 
     fn get_sort_idx(&self) -> u8 {
         self.sort & 0x7F
@@ -165,14 +165,14 @@ pub struct Table_ {
     pub theorems: Vec<Theorem_>,
     pub terms: Vec<Term_>,
     pub unify: Vec<opcode::Command<opcode::Unify>>,
-    pub binders: Vec<Type_>,
+    pub binders: Vec<Var_>,
 }
 
 impl Table for Table_ {
     type Sort = Sort_;
     type Term = Term_;
     type Theorem = Theorem_;
-    type Type = Type_;
+    type Var = Var_;
 
     fn get_sort(&self, idx: u8) -> Option<&Self::Sort> {
         self.sorts.get(idx as usize)
@@ -194,7 +194,7 @@ impl Table for Table_ {
         self.unify.get(idx as usize)
     }
 
-    fn get_binders(&self, idx: Range<usize>) -> Option<&[Self::Type]> {
+    fn get_binders(&self, idx: Range<usize>) -> Option<&[Self::Var]> {
         self.binders.get(idx)
     }
 }

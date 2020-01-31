@@ -5,8 +5,8 @@ pub mod store;
 use crate::error::Kind;
 use crate::verifier::table::Sort;
 use crate::verifier::Table;
-use crate::verifier::Type;
 use crate::KResult;
+use crate::Var;
 pub use heap::Heap;
 pub use stack::Stack;
 pub use store::{PackedPtr, Ptr, Store};
@@ -49,7 +49,7 @@ impl<S: Store> Context<S> {
 
     pub fn binder_check<T: Table>(
         table: &T,
-        ty: &T::Type,
+        ty: &T::Var,
         current_sort: u8,
         bv: &mut u64,
     ) -> KResult {
@@ -79,11 +79,11 @@ impl<S: Store> Context<S> {
         Ok(())
     }
 
-    pub fn allocate_binders<T: Table<Type = S::Type>>(
+    pub fn allocate_binders<T: Table<Var = S::Var>>(
         &mut self,
         table: &T,
         current_sort: u8,
-        binders: &[T::Type],
+        binders: &[T::Var],
     ) -> KResult {
         let mut next_bv = 1;
 

@@ -1,8 +1,9 @@
 use crate::error::Kind;
 use crate::verifier::context::{store, Context, Ptr, Store};
 use crate::verifier::stream;
-use crate::verifier::{Sort, State, Table, Term, Theorem, Type};
+use crate::verifier::{Sort, State, Table, Term, Theorem};
 use crate::KResult;
+use crate::Var;
 
 use crate::opcode;
 
@@ -167,7 +168,7 @@ where
 
 impl<T, S: Store> Proof<T> for Context<S>
 where
-    T: Table<Type = S::Type>,
+    T: Table<Var = S::Var>,
 {
     fn end(&mut self) -> KResult {
         // todo: make this check the stack?
@@ -197,7 +198,7 @@ where
             return Err(Kind::TooManyBoundVariables);
         }
 
-        let ty = Type::new(sort as u8, self.next_bv, true);
+        let ty = Var::new(sort as u8, self.next_bv, true);
 
         self.next_bv *= 2;
 
@@ -752,7 +753,7 @@ pub trait Run<SS: Store> {
         stream: S,
     ) -> KResult
     where
-        T: Table<Type = SS::Type>,
+        T: Table<Var = SS::Var>,
         S: IntoIterator,
         S::Item: TryInto<opcode::Command<opcode::Proof>>;
 }
@@ -766,7 +767,7 @@ impl<SS: Store> Run<SS> for Context<SS> {
         stream: S,
     ) -> KResult
     where
-        T: Table<Type = SS::Type>,
+        T: Table<Var = SS::Var>,
         S: IntoIterator,
         S::Item: TryInto<opcode::Command<opcode::Proof>>,
     {
@@ -855,7 +856,7 @@ where
         self.stream
     }
 
-    pub fn run<SS: Store, T: Table<Type = SS::Type>>(
+    pub fn run<SS: Store, T: Table<Var = SS::Var>>(
         &mut self,
         context: &mut Context<SS>,
         table: &T,
@@ -865,7 +866,7 @@ where
         Ok(())
     }
 
-    pub fn step<SS: Store, T: Table<Type = SS::Type>>(
+    pub fn step<SS: Store, T: Table<Var = SS::Var>>(
         &mut self,
         context: &mut Context<SS>,
         table: &T,

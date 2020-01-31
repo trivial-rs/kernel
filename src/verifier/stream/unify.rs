@@ -1,7 +1,8 @@
 use crate::error::Kind;
 use crate::verifier::context::{store, Context, Ptr, Store};
-use crate::verifier::{Table, Type};
+use crate::verifier::Table;
 use crate::KResult;
+use crate::Var;
 use core::convert::TryInto;
 use core::ops::Range;
 
@@ -104,7 +105,7 @@ impl<S: Store> Unify for Context<S> {
             .as_expr()
             .ok_or(Kind::InvalidStackType)?;
 
-        let var: store::Var<_> = self.store.get(e)?;
+        let var: store::Variable<_> = self.store.get(e)?;
         let ty = var.ty;
 
         if !(ty.is_bound() && ty.get_sort_idx() == (sort as u8)) {
@@ -161,13 +162,13 @@ impl<S: Store> Unify for Context<S> {
 pub trait Run<S: Store> {
     fn run<T>(&mut self, stream: Range<usize>, table: &T, mode: Mode, target: Ptr) -> KResult
     where
-        T: Table<Type = S::Type>;
+        T: Table<Var = S::Var>;
 }
 
 impl<S: Store> Run<S> for Context<S> {
     fn run<T>(&mut self, stream: Range<usize>, table: &T, mode: Mode, target: Ptr) -> KResult
     where
-        T: Table<Type = S::Type>,
+        T: Table<Var = S::Var>,
     {
         self.unify_stack.clear();
         self.unify_stack.push(target.to_expr());
@@ -214,7 +215,7 @@ impl Stepper {
         }
     }
 
-    pub fn step<S: Store, T: Table<Type = S::Type>>(
+    pub fn step<S: Store, T: Table<Var = S::Var>>(
         &mut self,
         context: &mut Context<S>,
         table: &T,

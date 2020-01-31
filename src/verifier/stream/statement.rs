@@ -2,8 +2,9 @@ use crate::error::Kind;
 use crate::verifier::context::{Context, Store};
 use crate::verifier::state::State;
 use crate::verifier::stream;
-use crate::verifier::{Sort, Table, Term, Theorem, Type};
+use crate::verifier::{Sort, Table, Term, Theorem};
 use crate::KResult;
+use crate::Var;
 
 use core::ops::Range;
 
@@ -73,7 +74,7 @@ pub enum TermDefAction {
 impl<S, Ty> TermDef<S, Ty>
 where
     S: Iterator<Item = opcode::Command<opcode::Proof>>,
-    Ty: Type,
+    Ty: Var,
 {
     pub fn new(idx: u32, stream: S) -> TermDef<S, Ty> {
         TermDef::Start { idx, stream }
@@ -93,7 +94,7 @@ where
         }
     }
 
-    pub fn step<SS: Store<Type = Ty>, T: Table<Type = SS::Type>>(
+    pub fn step<SS: Store<Var = Ty>, T: Table<Var = SS::Var>>(
         &mut self,
         context: &mut Context<SS>,
         state: &State,
@@ -320,7 +321,7 @@ where
         }
     }
 
-    pub fn step<SS: Store, T: Table<Type = SS::Type>>(
+    pub fn step<SS: Store, T: Table<Var = SS::Var>>(
         &mut self,
         context: &mut Context<SS>,
         state: &State,
@@ -494,7 +495,7 @@ impl<S, Ty> Stepper<S, Ty>
 where
     S: StatementStream + Iterator,
     <S as Iterator>::Item: TryInto<Opcode>,
-    Ty: Type,
+    Ty: Var,
 {
     pub fn new(stream: S) -> Stepper<S, Ty> {
         Stepper {
@@ -518,7 +519,7 @@ where
         &mut self.stream
     }
 
-    pub fn step<SS: Store<Type = Ty>, T: Table<Type = SS::Type>>(
+    pub fn step<SS: Store<Var = Ty>, T: Table<Var = SS::Var>>(
         &mut self,
         context: &mut Context<SS>,
         state: &mut State,
