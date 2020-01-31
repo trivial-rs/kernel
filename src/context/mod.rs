@@ -3,9 +3,9 @@ pub mod stack;
 pub mod store;
 
 use crate::error::Kind;
-use crate::verifier::table::Sort;
-use crate::verifier::Table;
+use crate::table::Sort;
 use crate::KResult;
+use crate::Table;
 use crate::Var;
 pub use heap::Heap;
 pub use stack::Stack;

@@ -1,9 +1,9 @@
+use crate::context::{store, Context, Ptr, Store};
 use crate::error::Kind;
-use crate::verifier::context::{store, Context, Ptr, Store};
-use crate::verifier::stream;
-use crate::verifier::{Sort, State, Table, Term, Theorem};
+use crate::stream;
 use crate::KResult;
 use crate::Var;
+use crate::{Sort, State, Table, Term, Theorem};
 
 use crate::opcode;
 

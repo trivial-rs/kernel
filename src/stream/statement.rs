@@ -1,10 +1,10 @@
+use crate::context::{Context, Store};
 use crate::error::Kind;
-use crate::verifier::context::{Context, Store};
-use crate::verifier::state::State;
-use crate::verifier::stream;
-use crate::verifier::{Sort, Table, Term, Theorem};
+use crate::state::State;
+use crate::stream;
 use crate::KResult;
 use crate::Var;
+use crate::{Sort, Table, Term, Theorem};
 
 use core::ops::Range;
 

@@ -1,7 +1,7 @@
+use crate::context::{store, Context, Ptr, Store};
 use crate::error::Kind;
-use crate::verifier::context::{store, Context, Ptr, Store};
-use crate::verifier::Table;
 use crate::KResult;
+use crate::Table;
 use crate::Var;
 use core::convert::TryInto;
 use core::ops::Range;
