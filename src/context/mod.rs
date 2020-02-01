@@ -47,6 +47,14 @@ impl<S: Store> Context<S> {
         &self.hyp_stack
     }
 
+    pub fn clear_except_store(&mut self) {
+        self.proof_stack.clear();
+        self.proof_heap.clear();
+        self.unify_stack.clear();
+        self.unify_heap.clear();
+        self.hyp_stack.clear();
+    }
+
     pub fn binder_check<T: Table>(
         table: &T,
         ty: &T::Var,

@@ -1,3 +1,5 @@
+use crate::Table;
+
 #[derive(Debug, Default, Clone, Copy)]
 pub struct State {
     pub(crate) current_term: u32,
@@ -28,5 +30,13 @@ impl State {
 
     pub fn increment_current_sort(&mut self) {
         self.current_sort += 1;
+    }
+
+    pub fn from_table<T: Table>(table: &T) -> State {
+        State {
+            current_term: table.nr_terms(),
+            current_theorem: table.nr_theorems(),
+            current_sort: table.nr_sorts(),
+        }
     }
 }

@@ -31,6 +31,10 @@ impl Stack {
         self.data.len()
     }
 
+    pub fn as_slice(&self) -> &[PackedPtr] {
+        &self.data
+    }
+
     pub fn get_last(&self, nr: usize) -> KResult<&[PackedPtr]> {
         let len = self.data.len();
         self.data

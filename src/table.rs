@@ -69,9 +69,15 @@ pub trait Table {
 
     fn get_sort(&self, idx: u8) -> Option<&Self::Sort>;
 
+    fn nr_sorts(&self) -> u8;
+
     fn get_term(&self, idx: u32) -> Option<&Self::Term>;
 
+    fn nr_terms(&self) -> u32;
+
     fn get_theorem(&self, idx: u32) -> Option<&Self::Theorem>;
+
+    fn nr_theorems(&self) -> u32;
 
     fn get_unify_commands(&self, idx: Range<usize>) -> Option<&[opcode::Command<opcode::Unify>]>;
 
@@ -178,12 +184,24 @@ impl Table for Table_ {
         self.sorts.get(idx as usize)
     }
 
+    fn nr_sorts(&self) -> u8 {
+        self.sorts.len() as u8
+    }
+
     fn get_term(&self, idx: u32) -> Option<&Self::Term> {
         self.terms.get(idx as usize)
     }
 
+    fn nr_terms(&self) -> u32 {
+        self.terms.len() as u32
+    }
+
     fn get_theorem(&self, idx: u32) -> Option<&Self::Theorem> {
         self.theorems.get(idx as usize)
+    }
+
+    fn nr_theorems(&self) -> u32 {
+        self.theorems.len() as u32
     }
 
     fn get_unify_commands(&self, idx: Range<usize>) -> Option<&[opcode::Command<opcode::Unify>]> {
