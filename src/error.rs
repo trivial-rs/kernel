@@ -41,6 +41,7 @@ pub enum Kind {
     TermOutOfRange,
     SortOutOfRange,
     StreamExhausted,
+    MissingProofStream,
 }
 
 /// A typedef for the result from a kernel method.

@@ -25,7 +25,7 @@ where
 {
     type ProofStream: Iterator<Item = opcode::Command<opcode::Proof>>;
 
-    fn take_proof_stream(&mut self) -> Self::ProofStream;
+    fn take_proof_stream(&mut self) -> Option<Self::ProofStream>;
 
     fn put_proof_stream(&mut self, proofs: Self::ProofStream);
 }
@@ -581,7 +581,10 @@ where
                     Ok(Some(Action::Sort))
                 }
                 Opcode::TermDef => {
-                    let ps = self.stream.take_proof_stream();
+                    let ps = self
+                        .stream
+                        .take_proof_stream()
+                        .ok_or(Kind::MissingProofStream)?;
                     let idx = state.get_current_term();
                     let td = TermDef::new(idx, ps);
 
@@ -589,14 +592,20 @@ where
                     Ok(Some(Action::TermDefStart(idx)))
                 }
                 Opcode::Axiom => {
-                    let ps = self.stream.take_proof_stream();
+                    let ps = self
+                        .stream
+                        .take_proof_stream()
+                        .ok_or(Kind::MissingProofStream)?;
                     let idx = state.get_current_theorem();
                     let at = AxiomThm::new(idx, ps, true);
                     self.state = StepState::AxiomThm(at);
                     Ok(Some(Action::AxiomStart(idx)))
                 }
                 Opcode::Thm => {
-                    let ps = self.stream.take_proof_stream();
+                    let ps = self
+                        .stream
+                        .take_proof_stream()
+                        .ok_or(Kind::MissingProofStream)?;
                     let idx = state.get_current_theorem();
                     let at = AxiomThm::new(idx, ps, false);
                     self.state = StepState::AxiomThm(at);
