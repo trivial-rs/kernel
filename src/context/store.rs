@@ -1,6 +1,6 @@
 use crate::{Var, Var_};
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct PackedPtr(u32);
 
 impl PackedPtr {
@@ -91,7 +91,7 @@ impl Display for PackedPtr {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Ptr(pub u32);
 
 impl Ptr {
