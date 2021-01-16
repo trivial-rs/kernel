@@ -88,10 +88,7 @@ where
     }
 
     pub fn is_done(&self) -> bool {
-        match self {
-            TermDef::Done { .. } => true,
-            _ => false,
-        }
+        matches!(self, TermDef::Done { .. })
     }
 
     pub fn step<SS: Store<Var = Ty>, T: Table<Var = SS::Var>>(
@@ -315,10 +312,7 @@ where
     }
 
     pub fn is_done(&self) -> bool {
-        match self {
-            AxiomThm::Done { .. } => true,
-            _ => false,
-        }
+        matches!(self, AxiomThm::Done { .. })
     }
 
     pub fn step<SS: Store, T: Table<Var = SS::Var>>(
@@ -505,10 +499,7 @@ where
     }
 
     pub fn is_state_normal(&self) -> bool {
-        match self.state {
-            StepState::Normal => true,
-            _ => false,
-        }
+        matches!(self.state, StepState::Normal)
     }
 
     pub fn get_stream(&self) -> &S {
