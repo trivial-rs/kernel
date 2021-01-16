@@ -6,7 +6,7 @@ use crate::Var;
 use core::convert::TryInto;
 use core::ops::Range;
 
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Mode {
     Def,
     Thm,
@@ -189,7 +189,7 @@ impl<S: Store> Run<S> for Context<S> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Stepper {
     started: bool,
     done: bool,
@@ -198,7 +198,7 @@ pub struct Stepper {
     stream: Range<usize>,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Action {
     Started,
     Cmd(usize, opcode::Command<opcode::Unify>),

@@ -1,6 +1,6 @@
 use super::{PackedPtr, Store};
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Heap {
     data: Vec<PackedPtr>,
 }

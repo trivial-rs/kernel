@@ -1,6 +1,6 @@
 use crate::Table;
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct State {
     pub(crate) current_term: u32,
     pub(crate) current_theorem: u32,

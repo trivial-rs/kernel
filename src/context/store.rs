@@ -1,6 +1,6 @@
 use crate::{Var, Var_};
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct PackedPtr(u32);
 
 impl PackedPtr {
@@ -91,7 +91,7 @@ impl Display for PackedPtr {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Ptr(pub u32);
 
 impl Ptr {
@@ -235,7 +235,7 @@ impl<'a, Ty: Copy> TryFrom<ElementRef<'a, Ty>> for Variable<Ty> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 enum InternalStoreElement {
     Variable {
         ty: Var_,
@@ -253,7 +253,7 @@ enum InternalStoreElement {
     },
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Store_ {
     data: Vec<InternalStoreElement>,
     args: Vec<PackedPtr>,

@@ -1,7 +1,7 @@
 use super::{PackedPtr, Store};
 use crate::{error::Kind, KResult};
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Stack {
     data: Vec<PackedPtr>,
 }

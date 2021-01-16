@@ -7,6 +7,7 @@ use crate::{Sort, State, Table, Term, Theorem};
 
 use crate::opcode;
 
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum FinalizeState {
     Theorem(bool),
     Unfold,
@@ -825,7 +826,7 @@ pub struct Stepper<S> {
     con: Continue,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Action {
     Unify(stream::unify::Action),
     UnifyDone,

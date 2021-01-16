@@ -8,7 +8,7 @@ use crate::{Sort, Table, Term, Theorem};
 
 use core::ops::Range;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Opcode {
     End,
     Sort,
@@ -60,7 +60,7 @@ pub enum TermDef<S, Ty> {
 
 use core::convert::TryInto;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum TermDefAction {
     Done,
     StartProof,
@@ -285,7 +285,7 @@ pub enum AxiomThm<S> {
     Dummy,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum AxiomThmAction {
     StartProof,
     Proof(stream::proof::Action),
@@ -479,7 +479,7 @@ where
     state: StepState<S::ProofStream, Ty>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Action {
     AxiomStart(u32),
     ThmStart(u32),

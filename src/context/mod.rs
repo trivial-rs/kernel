@@ -11,7 +11,7 @@ pub use heap::Heap;
 pub use stack::Stack;
 pub use store::{PackedPtr, Ptr, Store};
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Context<S: Store> {
     pub(crate) proof_stack: Stack,
     pub(crate) proof_heap: Heap,

@@ -14,7 +14,7 @@ pub trait Var: Copy {
     fn is_compatible_to(&self, other: &Self) -> bool;
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Var_(u64);
 
 impl From<u64> for Var_ {

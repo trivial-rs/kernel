@@ -86,7 +86,7 @@ pub trait Table {
     fn get_binders(&self, idx: Range<usize>) -> Option<&[Self::Var]>;
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Sort_(pub u8);
 
 impl From<u8> for Sort_ {
@@ -117,7 +117,7 @@ impl Sort for Sort_ {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 pub struct Term_ {
     pub sort: u8,
     pub binders: Range<usize>,
@@ -149,7 +149,7 @@ impl Term for Term_ {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 pub struct Theorem_ {
     pub binders: Range<usize>,
     pub unify_commands: Range<usize>,
@@ -165,7 +165,7 @@ impl Theorem for Theorem_ {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 pub struct Table_ {
     pub sorts: Vec<Sort_>,
     pub theorems: Vec<Theorem_>,
