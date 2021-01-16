@@ -250,7 +250,7 @@ where
             TermDef::Dummy => (TermDef::Dummy, TermDefAction::Done),
         };
 
-        core::mem::replace(self, next_state);
+        *self = next_state;
 
         Ok(ret_val)
     }
@@ -456,7 +456,7 @@ where
             AxiomThm::Dummy => (AxiomThm::Dummy, AxiomThmAction::Done),
         };
 
-        core::mem::replace(self, next_state);
+        *self = next_state;
 
         Ok(ret_val)
     }
@@ -562,7 +562,7 @@ where
             }
         };
 
-        core::mem::replace(&mut self.state, next_state);
+        self.state = next_state;
 
         ret
     }
