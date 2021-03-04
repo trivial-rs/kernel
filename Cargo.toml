@@ -1,6 +1,8 @@
 [package]
 name = "trivial-kernel"
 version = "0.8.0"
+readme = "README.md"
+repository = "https://github.com/trivial-rs/kernel"
 authors = ["Ivo C.S. Wingelaar <ivo@codeforge.rs>"]
 description = "A Metamath Zero kernel for Trivial"
 keywords = ["metamath-zero", "trivial"]
