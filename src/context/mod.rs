@@ -23,27 +23,27 @@ pub struct Context<S: Store> {
 }
 
 impl<S: Store> Context<S> {
-    pub fn get_proof_stack(&self) -> &Stack {
+    pub fn proof_stack(&self) -> &Stack {
         &self.proof_stack
     }
 
-    pub fn get_proof_heap(&self) -> &Heap {
+    pub fn proof_heap(&self) -> &Heap {
         &self.proof_heap
     }
 
-    pub fn get_unify_stack(&self) -> &Stack {
+    pub fn unify_stack(&self) -> &Stack {
         &self.unify_stack
     }
 
-    pub fn get_unify_heap(&self) -> &Heap {
+    pub fn unify_heap(&self) -> &Heap {
         &self.unify_heap
     }
 
-    pub fn get_store(&self) -> &S {
+    pub fn store(&self) -> &S {
         &self.store
     }
 
-    pub fn get_hyp_stack(&self) -> &Stack {
+    pub fn hyp_stack(&self) -> &Stack {
         &self.hyp_stack
     }
 

@@ -104,7 +104,7 @@ where
                 let term = table.get_term(idx).ok_or(Kind::InvalidTerm)?;
 
                 let sort_idx = term.get_sort_idx();
-                let current_sort = state.get_current_sort();
+                let current_sort = state.current_sort();
 
                 if sort_idx >= current_sort {
                     return Err(Kind::SortOutOfRange);
@@ -344,7 +344,7 @@ where
                     .get_binders(binders)
                     .ok_or(Kind::InvalidBinderIndices)?;
 
-                context.allocate_binders(table, state.current_sort, binders)?;
+                context.allocate_binders(table, state.current_sort(), binders)?;
 
                 let stepper = stream::proof::Stepper::new(false, *state, stream);
 
@@ -576,7 +576,7 @@ where
                         .stream
                         .take_proof_stream()
                         .ok_or(Kind::MissingProofStream)?;
-                    let idx = state.get_current_term();
+                    let idx = state.current_term();
                     let td = TermDef::new(idx, ps);
 
                     self.state = StepState::TermDef(td);
@@ -587,7 +587,7 @@ where
                         .stream
                         .take_proof_stream()
                         .ok_or(Kind::MissingProofStream)?;
-                    let idx = state.get_current_theorem();
+                    let idx = state.current_theorem();
                     let at = AxiomThm::new(idx, ps, true);
                     self.state = StepState::AxiomThm(at);
                     Ok(Some(Action::AxiomStart(idx)))
@@ -597,7 +597,7 @@ where
                         .stream
                         .take_proof_stream()
                         .ok_or(Kind::MissingProofStream)?;
-                    let idx = state.get_current_theorem();
+                    let idx = state.current_theorem();
                     let at = AxiomThm::new(idx, ps, false);
                     self.state = StepState::AxiomThm(at);
                     Ok(Some(Action::ThmStart(idx)))

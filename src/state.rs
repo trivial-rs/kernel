@@ -2,13 +2,13 @@ use crate::Table;
 
 #[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct State {
-    pub(crate) current_term: u32,
-    pub(crate) current_theorem: u32,
-    pub(crate) current_sort: u8,
+    current_term: u32,
+    current_theorem: u32,
+    current_sort: u8,
 }
 
 impl State {
-    pub fn get_current_term(&self) -> u32 {
+    pub fn current_term(&self) -> u32 {
         self.current_term
     }
 
@@ -16,7 +16,7 @@ impl State {
         self.current_term += 1;
     }
 
-    pub fn get_current_theorem(&self) -> u32 {
+    pub fn current_theorem(&self) -> u32 {
         self.current_theorem
     }
 
@@ -24,7 +24,7 @@ impl State {
         self.current_theorem += 1;
     }
 
-    pub fn get_current_sort(&self) -> u8 {
+    pub fn current_sort(&self) -> u8 {
         self.current_sort
     }
 

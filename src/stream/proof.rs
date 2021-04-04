@@ -75,18 +75,18 @@ where
                 return Ok(true);
             }
             (Ref, _) => self.reference(command.operand),
-            (Dummy, _) => self.dummy(table, command.operand, state.current_sort.into()),
+            (Dummy, _) => self.dummy(table, command.operand, state.current_sort().into()),
             (Term, _) => self.term(
                 table,
                 command.operand,
-                state.current_term,
+                state.current_term(),
                 false,
                 is_definition,
             ),
             (TermSave, _) => self.term(
                 table,
                 command.operand,
-                state.current_term,
+                state.current_term(),
                 true,
                 is_definition,
             ),
@@ -124,18 +124,18 @@ where
                 return Ok(None);
             }
             (Ref, _) => self.reference(command.operand),
-            (Dummy, _) => self.dummy(table, command.operand, state.current_sort.into()),
+            (Dummy, _) => self.dummy(table, command.operand, state.current_sort().into()),
             (Term, _) => self.term(
                 table,
                 command.operand,
-                state.current_term,
+                state.current_term(),
                 false,
                 is_definition,
             ),
             (TermSave, _) => self.term(
                 table,
                 command.operand,
-                state.current_term,
+                state.current_term(),
                 true,
                 is_definition,
             ),
@@ -902,7 +902,7 @@ where
             ),
             Continue::Theorem { idx, save } => {
                 let (x, a, b) =
-                    context.theorem_start(table, *idx, self.state.current_theorem, *save)?;
+                    context.theorem_start(table, *idx, self.state.current_theorem(), *save)?;
                 (
                     Some(Continue::UnifyTheorem {
                         stepper: x,
