@@ -28,9 +28,9 @@ pub trait Term {
     type Type: Var;
 
     /// Returns the index of the sort this term has.
-    fn get_sort_idx(&self) -> u8;
+    fn sort_idx(&self) -> u8;
 
-    /// Returns if this term is a definition.
+    /// Returns `true` if this term is a definition, and `false` otherwise.
     ///
     /// Definitions are always conservative and can be unfolded in a proof.
     fn is_definition(&self) -> bool;
@@ -38,13 +38,13 @@ pub trait Term {
     /// Returns the range of the binders (arguments) of the term.
     ///
     /// The range can be queried in the `Table` to get the binders themselves.
-    fn get_binders(&self) -> Range<usize>;
+    fn binders(&self) -> Range<usize>;
 
     /// Returns the type of the expression.
-    fn get_return_type(&self) -> &Self::Type;
+    fn return_type(&self) -> &Self::Type;
 
     /// Returns the unification command stream if this term is a definition.
-    fn get_command_stream(&self) -> Range<usize>;
+    fn command_stream(&self) -> Range<usize>;
 }
 
 /// A handle to a theorem.
@@ -54,9 +54,9 @@ pub trait Term {
 /// The number of hypotheses can be determined by counting the number of `Hyp`
 /// commands in the unification stream.
 pub trait Theorem {
-    fn get_binders(&self) -> Range<usize>;
+    fn binders(&self) -> Range<usize>;
 
-    fn get_unify_commands(&self) -> Range<usize>;
+    fn unify_commands(&self) -> Range<usize>;
 }
 
 /// An interface that enables queries for properties of sorts, terms and
@@ -67,23 +67,23 @@ pub trait Table {
     type Theorem: Theorem;
     type Var: Var;
 
-    fn get_sort(&self, idx: u8) -> Option<&Self::Sort>;
+    fn sort(&self, idx: u8) -> Option<&Self::Sort>;
 
     fn nr_sorts(&self) -> u8;
 
-    fn get_term(&self, idx: u32) -> Option<&Self::Term>;
+    fn term(&self, idx: u32) -> Option<&Self::Term>;
 
     fn nr_terms(&self) -> u32;
 
-    fn get_theorem(&self, idx: u32) -> Option<&Self::Theorem>;
+    fn theorem(&self, idx: u32) -> Option<&Self::Theorem>;
 
     fn nr_theorems(&self) -> u32;
 
-    fn get_unify_commands(&self, idx: Range<usize>) -> Option<&[opcode::Command<opcode::Unify>]>;
+    fn unify_commands(&self, idx: Range<usize>) -> Option<&[opcode::Command<opcode::Unify>]>;
 
-    fn get_unify_command(&self, idx: usize) -> Option<&opcode::Command<opcode::Unify>>;
+    fn unify_command(&self, idx: usize) -> Option<&opcode::Command<opcode::Unify>>;
 
-    fn get_binders(&self, idx: Range<usize>) -> Option<&[Self::Var]>;
+    fn binders(&self, idx: Range<usize>) -> Option<&[Self::Var]>;
 }
 
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -128,7 +128,7 @@ pub struct Term_ {
 impl Term for Term_ {
     type Type = Var_;
 
-    fn get_sort_idx(&self) -> u8 {
+    fn sort_idx(&self) -> u8 {
         self.sort & 0x7F
     }
 
@@ -136,15 +136,15 @@ impl Term for Term_ {
         (self.sort & 0x80) != 0
     }
 
-    fn get_binders(&self) -> Range<usize> {
+    fn binders(&self) -> Range<usize> {
         self.binders.clone()
     }
 
-    fn get_return_type(&self) -> &Self::Type {
+    fn return_type(&self) -> &Self::Type {
         &self.ret_type
     }
 
-    fn get_command_stream(&self) -> Range<usize> {
+    fn command_stream(&self) -> Range<usize> {
         self.unify_commands.clone()
     }
 }
@@ -156,11 +156,11 @@ pub struct Theorem_ {
 }
 
 impl Theorem for Theorem_ {
-    fn get_binders(&self) -> Range<usize> {
+    fn binders(&self) -> Range<usize> {
         self.binders.clone()
     }
 
-    fn get_unify_commands(&self) -> Range<usize> {
+    fn unify_commands(&self) -> Range<usize> {
         self.unify_commands.clone()
     }
 }
@@ -180,7 +180,7 @@ impl Table for Table_ {
     type Theorem = Theorem_;
     type Var = Var_;
 
-    fn get_sort(&self, idx: u8) -> Option<&Self::Sort> {
+    fn sort(&self, idx: u8) -> Option<&Self::Sort> {
         self.sorts.get(idx as usize)
     }
 
@@ -188,7 +188,7 @@ impl Table for Table_ {
         self.sorts.len() as u8
     }
 
-    fn get_term(&self, idx: u32) -> Option<&Self::Term> {
+    fn term(&self, idx: u32) -> Option<&Self::Term> {
         self.terms.get(idx as usize)
     }
 
@@ -196,7 +196,7 @@ impl Table for Table_ {
         self.terms.len() as u32
     }
 
-    fn get_theorem(&self, idx: u32) -> Option<&Self::Theorem> {
+    fn theorem(&self, idx: u32) -> Option<&Self::Theorem> {
         self.theorems.get(idx as usize)
     }
 
@@ -204,15 +204,15 @@ impl Table for Table_ {
         self.theorems.len() as u32
     }
 
-    fn get_unify_commands(&self, idx: Range<usize>) -> Option<&[opcode::Command<opcode::Unify>]> {
+    fn unify_commands(&self, idx: Range<usize>) -> Option<&[opcode::Command<opcode::Unify>]> {
         self.unify.get(idx)
     }
 
-    fn get_unify_command(&self, idx: usize) -> Option<&opcode::Command<opcode::Unify>> {
+    fn unify_command(&self, idx: usize) -> Option<&opcode::Command<opcode::Unify>> {
         self.unify.get(idx as usize)
     }
 
-    fn get_binders(&self, idx: Range<usize>) -> Option<&[Self::Var]> {
+    fn binders(&self, idx: Range<usize>) -> Option<&[Self::Var]> {
         self.binders.get(idx)
     }
 }

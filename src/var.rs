@@ -7,9 +7,9 @@ pub trait Var: Copy {
 
     fn depends_on_full(&self, other: u64) -> bool;
 
-    fn get_deps(&self) -> u64;
+    fn dependencies(&self) -> u64;
 
-    fn get_sort_idx(&self) -> u8;
+    fn sort_idx(&self) -> u8;
 
     fn is_compatible_to(&self, other: &Self) -> bool;
 }
@@ -46,16 +46,16 @@ impl Var for Var_ {
 
     #[inline(always)]
     fn depends_on_full(&self, other: u64) -> bool {
-        (self.get_deps() & other) != 0
+        (self.dependencies() & other) != 0
     }
 
     #[inline(always)]
-    fn get_deps(&self) -> u64 {
+    fn dependencies(&self) -> u64 {
         self.0 & ((1u64 << 56) - 1)
     }
 
     #[inline(always)]
-    fn get_sort_idx(&self) -> u8 {
+    fn sort_idx(&self) -> u8 {
         ((self.0 >> 56) & 0x7F) as u8
     }
 

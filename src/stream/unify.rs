@@ -108,11 +108,11 @@ impl<S: Store> Unify for Context<S> {
         let var: store::Variable<_> = self.store.get(e)?;
         let ty = var.ty;
 
-        if !(ty.is_bound() && ty.get_sort_idx() == (sort as u8)) {
+        if !(ty.is_bound() && ty.sort_idx() == (sort as u8)) {
             return Err(Kind::UnifyTermFailure);
         }
 
-        let deps = ty.get_deps();
+        let deps = ty.dependencies();
 
         for i in self.unify_heap.as_slice() {
             let i = i.as_expr().ok_or(Kind::InvalidStoreExpr)?;
@@ -174,7 +174,7 @@ impl<S: Store> Run<S> for Context<S> {
         self.unify_stack.push(target.to_expr());
 
         let commands = table
-            .get_unify_commands(stream)
+            .unify_commands(stream)
             .ok_or(Kind::InvalidUnifyCommandIndex)?;
 
         for i in commands {
@@ -233,7 +233,7 @@ impl Stepper {
             match current_idx {
                 Some(idx) => {
                     let command = table
-                        .get_unify_command(idx)
+                        .unify_command(idx)
                         .ok_or(Kind::InvalidUnifyCommandIndex)?;
 
                     self.done = context.execute(*command, self.mode)?;

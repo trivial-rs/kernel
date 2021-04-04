@@ -61,14 +61,14 @@ impl<S: Store> Context<S> {
         current_sort: u8,
         bv: &mut u64,
     ) -> KResult {
-        let idx = ty.get_sort_idx();
+        let idx = ty.sort_idx();
 
         if idx >= current_sort {
             return Err(Kind::SortOutOfRange);
         }
 
-        let sort = table.get_sort(ty.get_sort_idx()).ok_or(Kind::InvalidSort)?;
-        let deps = ty.get_deps();
+        let sort = table.sort(ty.sort_idx()).ok_or(Kind::InvalidSort)?;
+        let deps = ty.dependencies();
 
         if ty.is_bound() {
             if sort.is_strict() {

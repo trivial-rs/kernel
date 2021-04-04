@@ -324,7 +324,7 @@ impl Store for Store_ {
                 return Err(Kind::IncompatibleTypes);
             }
 
-            let mut deps = ty.get_deps();
+            let mut deps = ty.dependencies();
 
             if target_type.is_bound() {
                 *g_deps
@@ -349,7 +349,7 @@ impl Store for Store_ {
             }
         }
 
-        if def && ret_type.get_deps() != 0 {
+        if def && ret_type.dependencies() != 0 {
             for (_, &j) in g_deps
                 .get(..(bound as usize))
                 .ok_or(Kind::DependencyOverflow)?

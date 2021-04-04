@@ -101,26 +101,24 @@ where
 
         let (next_state, ret_val) = match old {
             TermDef::Start { idx, stream } => {
-                let term = table.get_term(idx).ok_or(Kind::InvalidTerm)?;
+                let term = table.term(idx).ok_or(Kind::InvalidTerm)?;
 
-                let sort_idx = term.get_sort_idx();
+                let sort_idx = term.sort_idx();
                 let current_sort = state.current_sort();
 
                 if sort_idx >= current_sort {
                     return Err(Kind::SortOutOfRange);
                 }
 
-                let sort = table.get_sort(sort_idx).ok_or(Kind::InvalidSort)?;
+                let sort = table.sort(sort_idx).ok_or(Kind::InvalidSort)?;
 
                 if sort.is_pure() {
                     return Err(Kind::SortIsPure);
                 }
 
-                let binders = term.get_binders();
+                let binders = term.binders();
                 let nr_args = binders.len();
-                let binders = table
-                    .get_binders(binders)
-                    .ok_or(Kind::InvalidBinderIndices)?;
+                let binders = table.binders(binders).ok_or(Kind::InvalidBinderIndices)?;
 
                 context.store.clear();
                 context.proof_stack.clear();
@@ -132,13 +130,13 @@ where
                 context.allocate_binders(table, current_sort, binders)?;
 
                 let mut next_bv = context.next_bv;
-                let ret_type = term.get_return_type();
+                let ret_type = term.return_type();
 
                 Context::<SS>::binder_check(table, ret_type, current_sort, &mut next_bv)?;
 
                 context.next_bv = next_bv;
 
-                if term.get_sort_idx() != ret_type.get_sort_idx() {
+                if term.sort_idx() != ret_type.sort_idx() {
                     return Err(Kind::BadReturnType);
                 }
 
@@ -147,7 +145,7 @@ where
                 } else {
                     let stepper = stream::proof::Stepper::new(true, *state, stream);
 
-                    let commands = term.get_command_stream();
+                    let commands = term.command_stream();
 
                     (
                         TermDef::RunProof {
@@ -214,7 +212,7 @@ where
                     return Err(Kind::TypeError);
                 }
 
-                if ty.get_deps() != ret_type.get_deps() {
+                if ty.dependencies() != ret_type.dependencies() {
                     return Err(Kind::UnaccountedDependencies);
                 }
 
@@ -329,7 +327,7 @@ where
                 stream,
                 is_axiom,
             } => {
-                let thm = table.get_theorem(idx).ok_or(Kind::InvalidTheorem)?;
+                let thm = table.theorem(idx).ok_or(Kind::InvalidTheorem)?;
 
                 context.store.clear();
                 context.proof_stack.clear();
@@ -338,17 +336,15 @@ where
                 context.unify_heap.clear();
                 context.hyp_stack.clear();
 
-                let binders = thm.get_binders();
+                let binders = thm.binders();
                 let nr_args = binders.len();
-                let binders = table
-                    .get_binders(binders)
-                    .ok_or(Kind::InvalidBinderIndices)?;
+                let binders = table.binders(binders).ok_or(Kind::InvalidBinderIndices)?;
 
                 context.allocate_binders(table, state.current_sort(), binders)?;
 
                 let stepper = stream::proof::Stepper::new(false, *state, stream);
 
-                let commands = thm.get_unify_commands();
+                let commands = thm.unify_commands();
 
                 (
                     AxiomThm::RunProof {
@@ -412,9 +408,9 @@ where
                     .store
                     .get_type_of_expr(expr)
                     .ok_or(Kind::InvalidStoreExpr)?
-                    .get_sort_idx();
+                    .sort_idx();
 
-                let sort = table.get_sort(sort).ok_or(Kind::InvalidSort)?;
+                let sort = table.sort(sort).ok_or(Kind::InvalidSort)?;
 
                 if !sort.is_provable() {
                     return Err(Kind::SortNotProvable);

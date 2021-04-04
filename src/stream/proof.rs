@@ -189,7 +189,7 @@ where
             return Err(Kind::SortOutOfRange);
         }
 
-        let s = table.get_sort(sort as u8).ok_or(Kind::InvalidSort)?;
+        let s = table.sort(sort as u8).ok_or(Kind::InvalidSort)?;
 
         if s.is_strict() {
             return Err(Kind::SortIsStrict);
@@ -216,22 +216,20 @@ where
             return Err(Kind::TermOutOfRange);
         }
 
-        let term = table.get_term(idx).ok_or(Kind::InvalidTerm)?;
+        let term = table.term(idx).ok_or(Kind::InvalidTerm)?;
 
-        let binders = term.get_binders();
+        let binders = term.binders();
         let nr_args = binders.len();
         let last = self.proof_stack.get_last(nr_args)?;
 
-        let binders = table
-            .get_binders(binders)
-            .ok_or(Kind::InvalidBinderIndices)?;
+        let binders = table.binders(binders).ok_or(Kind::InvalidBinderIndices)?;
 
         let ptr = self.store.create_term(
             idx,
             last.iter().cloned(),
             binders,
-            term.get_return_type(),
-            term.get_sort_idx(),
+            term.return_type(),
+            term.sort_idx(),
             def,
         )?;
 
@@ -247,7 +245,7 @@ where
     }
 
     fn theorem(&mut self, table: &T, idx: u32, save: bool) -> KResult {
-        let thm = table.get_theorem(idx).ok_or(Kind::InvalidTheorem)?;
+        let thm = table.theorem(idx).ok_or(Kind::InvalidTheorem)?;
         let target = self
             .proof_stack
             .pop()
@@ -255,11 +253,11 @@ where
             .as_expr()
             .ok_or(Kind::InvalidStoreExpr)?;
 
-        let types = thm.get_binders();
+        let types = thm.binders();
         let nr_args = types.len();
         let last = self.proof_stack.get_last(nr_args)?;
 
-        let types = table.get_binders(types).ok_or(Kind::InvalidBinderIndices)?;
+        let types = table.binders(types).ok_or(Kind::InvalidBinderIndices)?;
 
         self.unify_heap.clear();
 
@@ -274,7 +272,7 @@ where
                 .get_type_of_expr(arg)
                 .ok_or(Kind::InvalidStoreExpr)?;
 
-            let deps = ty.get_deps();
+            let deps = ty.dependencies();
 
             if target_type.is_bound() {
                 *g_deps
@@ -312,7 +310,7 @@ where
         self.unify_heap.extend(last);
         self.proof_stack.truncate_last(nr_args);
 
-        let commands = thm.get_unify_commands();
+        let commands = thm.unify_commands();
 
         stream::unify::Run::run(self, commands, table, stream::unify::Mode::Thm, target)?;
 
@@ -338,7 +336,7 @@ where
             return Err(Kind::TheoremOutOfRange);
         }
 
-        let thm = table.get_theorem(idx).ok_or(Kind::InvalidTheorem)?;
+        let thm = table.theorem(idx).ok_or(Kind::InvalidTheorem)?;
         let target = self
             .proof_stack
             .pop()
@@ -346,11 +344,11 @@ where
             .as_expr()
             .ok_or(Kind::InvalidStoreExpr)?;
 
-        let types = thm.get_binders();
+        let types = thm.binders();
         let nr_args = types.len();
         let last = self.proof_stack.get_last(nr_args)?;
 
-        let types = table.get_binders(types).ok_or(Kind::InvalidBinderIndices)?;
+        let types = table.binders(types).ok_or(Kind::InvalidBinderIndices)?;
 
         self.unify_heap.clear();
 
@@ -365,7 +363,7 @@ where
                 .get_type_of_expr(arg)
                 .ok_or(Kind::InvalidStoreExpr)?;
 
-            let deps = ty.get_deps();
+            let deps = ty.dependencies();
 
             if target_type.is_bound() {
                 *g_deps
@@ -403,7 +401,7 @@ where
         self.unify_heap.extend(last);
         self.proof_stack.truncate_last(nr_args);
 
-        let commands = thm.get_unify_commands();
+        let commands = thm.unify_commands();
 
         let stepper = stream::unify::Stepper::new(stream::unify::Mode::Thm, target, commands);
 
@@ -434,7 +432,7 @@ where
             .get_type_of_expr(e)
             .ok_or(Kind::InvalidStoreExpr)?;
 
-        let sort = table.get_sort(ty.get_sort_idx()).ok_or(Kind::InvalidSort)?;
+        let sort = table.sort(ty.sort_idx()).ok_or(Kind::InvalidSort)?;
 
         if !sort.is_provable() {
             return Err(Kind::SortNotProvable);
@@ -555,7 +553,7 @@ where
 
         let t: store::Term<_> = self.store.get(t_ptr)?;
 
-        let term = table.get_term(*t.id).ok_or(Kind::InvalidTerm)?;
+        let term = table.term(*t.id).ok_or(Kind::InvalidTerm)?;
 
         if !term.is_definition() {
             return Err(Kind::InvalidSort);
@@ -564,7 +562,7 @@ where
         self.unify_heap.clear();
         self.unify_heap.extend(t.args);
 
-        let commands = term.get_command_stream();
+        let commands = term.command_stream();
 
         let stepper = stream::unify::Stepper::new(stream::unify::Mode::Def, e, commands);
 
@@ -613,7 +611,7 @@ where
 
         let t: store::Term<_> = self.store.get(t_ptr)?;
 
-        let term = table.get_term(*t.id).ok_or(Kind::InvalidTerm)?;
+        let term = table.term(*t.id).ok_or(Kind::InvalidTerm)?;
 
         if !term.is_definition() {
             return Err(Kind::InvalidSort);
@@ -622,7 +620,7 @@ where
         self.unify_heap.clear();
         self.unify_heap.extend(t.args);
 
-        let commands = term.get_command_stream();
+        let commands = term.command_stream();
 
         stream::unify::Run::run(self, commands, table, stream::unify::Mode::Def, e)?;
 
